@@ -66,7 +66,7 @@ Installation & Usage
 
 Choose one of these installation options:
 
-- Install with **git**: `git clone https://github.com/tobiasGuta/dirsearch---Web-path-discovery-Modified-Version.git`
+- Install with **git**: `git clone https://github.com/tobiasGuta/dirsearch-Web-path-discovery-Modified-Version.git`
 
 
 Wordlists (IMPORTANT)
