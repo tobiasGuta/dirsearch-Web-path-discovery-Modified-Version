@@ -139,17 +139,6 @@ class Requester(BaseRequester):
         self.session.verify = False
         self.session.cert = self._cert
 
-        if options["bypass_waf"]:
-            if cloudscraper:
-                try:
-                    self.session = cloudscraper.create_scraper(sess=self.session)
-                except Exception as e:
-                    logger.warning(f"Failed to initialize cloudscraper: {e}")
-            else:
-                logger.error("Cloudscraper is not installed. Please install it with 'pip install cloudscraper' to use --bypass-waf")
-                import sys
-                sys.exit(1)
-
         for scheme in ("http://", "https://"):
             self.session.mount(
                 scheme,
@@ -159,6 +148,33 @@ class Requester(BaseRequester):
                     socket_options=self._socket_options,
                 ),
             )
+
+        if options["bypass_waf"]:
+            if cloudscraper:
+                try:
+                    self.session = cloudscraper.create_scraper(
+                        sess=self.session,
+                        browser={
+                            'browser': 'chrome',
+                            'platform': 'windows',
+                            'desktop': True
+                        }
+                    )
+                    # Sync headers with cloudscraper's to ensure consistency (User-Agent, Accept, etc.)
+                    for k, v in self.session.headers.items():
+                        self.headers[k] = v
+                    
+                    # Re-apply user-provided headers to override cloudscraper defaults if specified
+                    # This allows the user to set a specific User-Agent or Accept header if needed
+                    if options["headers"]:
+                        for k, v in options["headers"].items():
+                            self.headers[k] = v
+                except Exception as e:
+                    logger.warning(f"Failed to initialize cloudscraper: {e}")
+            else:
+                logger.error("Cloudscraper is not installed. Please install it with 'pip install cloudscraper' to use --bypass-waf")
+                import sys
+                sys.exit(1)
 
         if options["auth"]:
             self.set_auth(options["auth_type"], options["auth"])
@@ -210,27 +226,43 @@ class Requester(BaseRequester):
                 except IndexError:
                     pass
 
-                if self.agents:
+                if self.agents and not options["bypass_waf"]:
                     self.set_header("user-agent", random.choice(self.agents))
 
-                # Use prepared request to avoid the URL path from being normalized
-                # Reference: https://github.com/psf/requests/issues/5289
-                request = requests.Request(
-                    options["http_method"],
-                    url,
-                    headers=self.headers,
-                    data=options["data"],
-                )
-                prep = self.session.prepare_request(request)
-                prep.url = url
+                if options["bypass_waf"]:
+                    # When bypassing WAF, we must use session.request() to allow cloudscraper
+                    # to intercept the request and handle challenges.
+                    # Note: This might normalize the URL path, but it's necessary for WAF bypass.
+                    origin_response = self.session.request(
+                        options["http_method"],
+                        url,
+                        headers=self.headers,
+                        data=options["data"],
+                        allow_redirects=options["follow_redirects"],
+                        timeout=options["timeout"],
+                        proxies=proxies,
+                        stream=True,
+                    )
+                else:
+                    # Use prepared request to avoid the URL path from being normalized
+                    # Reference: https://github.com/psf/requests/issues/5289
+                    request = requests.Request(
+                        options["http_method"],
+                        url,
+                        headers=self.headers,
+                        data=options["data"],
+                    )
+                    prep = self.session.prepare_request(request)
+                    prep.url = url
 
-                origin_response = self.session.send(
-                    prep,
-                    allow_redirects=options["follow_redirects"],
-                    timeout=options["timeout"],
-                    proxies=proxies,
-                    stream=True,
-                )
+                    origin_response = self.session.send(
+                        prep,
+                        allow_redirects=options["follow_redirects"],
+                        timeout=options["timeout"],
+                        proxies=proxies,
+                        stream=True,
+                    )
+                
                 response = Response(url, origin_response)
 
                 log_msg = f'"{options["http_method"]} {response.url}" {response.status} - {response.length}B'

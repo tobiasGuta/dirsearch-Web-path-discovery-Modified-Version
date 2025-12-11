@@ -3,20 +3,7 @@ dirsearch - Web path discovery (Modified Version)
 
 > **Note:** This repository is a modified version of the original [dirsearch](https://github.com/maurosoria/dirsearch) by Mauro Soria. It contains custom enhancements including WAF detection and bypass capabilities.
 
-![Build](https://img.shields.io/badge/Built%20with-Python-Blue)
-![License](https://img.shields.io/badge/license-GNU_General_Public_License-_red.svg)
-![Stars](https://img.shields.io/github/stars/maurosoria/dirsearch.svg)
-[![Release](https://img.shields.io/github/release/maurosoria/dirsearch.svg)](https://github.com/maurosoria/dirsearch/releases)
-[![Sponsors](https://img.shields.io/github/sponsors/maurosoria)](https://github.com/sponsors/maurosoria)
-[![Discord](https://img.shields.io/discord/992276296669339678.svg?logo=discord)](https://discord.gg/2N22ZdAJRj)
-[![Twitter](https://img.shields.io/twitter/follow/_dirsearch?label=Follow)](https://twitter.com/_dirsearch)
-
-
 > An advanced web path brute-forcer
-
-**dirsearch** is being actively developed by [@maurosoria](https://twitter.com/_maurosoria) and [@shelld3v](https://twitter.com/shells3c_)
-
-*Reach to our [Discord server](https://discord.gg/2N22ZdAJRj) to communicate with the team at best*
 
 
 Table of Contents
@@ -46,9 +33,7 @@ Table of Contents
   * [Install Docker Linux](#install-docker-linux)
   * [Build Image dirsearch](#build-image-dirsearch)
   * [Using dirsearch](#using-dirsearch)
-* [References](#references)
 * [Tips](#tips)
-* [Contribution](#contribution)
 * [License](#license)
 
 
@@ -57,6 +42,9 @@ Modifications
 This version includes the following enhancements:
 - **WAF Detection**: Automatically detects if a WAF (Web Application Firewall) is present (e.g., Cloudflare, CloudFront, Incapsula) and warns the user.
 - **WAF Bypass**: Added `--bypass-waf` flag to use `cloudscraper` for bypassing WAF protections like Cloudflare's "Under Attack Mode".
+  - **Browser Emulation**: Initializes a real Chrome browser profile to solve JavaScript challenges.
+  - **Header Synchronization**: Automatically syncs headers between the solver and the scanner to prevent detection.
+  - **Custom Header Priority**: Allows custom headers (e.g., mobile User-Agents) to override default browser headers while maintaining the bypass session.
 - **Enhanced Crawling**: Improved JavaScript and text crawling capabilities.
 
 Installation & Usage
@@ -645,23 +633,6 @@ docker run -it --rm "dirsearch:v0.4.3" -u target -e php,html,js,zip
 ```
 
 
-References
----------------
-- [Comprehensive Guide on Dirsearch](https://www.hackingarticles.in/comprehensive-guide-on-dirsearch/) by Shubham Sharma
-- [Comprehensive Guide on Dirsearch Part 2](https://www.hackingarticles.in/comprehensive-guide-on-dirsearch-part-2/) by Shubham Sharma
-- [How to Find Hidden Web Directories with Dirsearch](https://www.geeksforgeeks.org/how-to-find-hidden-web-directories-with-dirsearch/) by GeeksforGeeks
-- [GUÍA COMPLETA SOBRE EL USO DE DIRSEARCH](https://esgeeks.com/guia-completa-uso-dirsearch/?feed_id=5703&_unique_id=6076249cc271f) by ESGEEKS
-- [How to use Dirsearch to detect web directories](https://www.ehacking.net/2020/01/how-to-find-hidden-web-directories-using-dirsearch.html) by EHacking
-- [dirsearch how to](https://vk9-sec.com/dirsearch-how-to/) by VK9 Security
-- [Find Hidden Web Directories with Dirsearch](https://null-byte.wonderhowto.com/how-to/find-hidden-web-directories-with-dirsearch-0201615/) by Wonder How To
-- [Brute force directories and files in webservers using dirsearch](https://upadhyayraj.medium.com/brute-force-directories-and-files-in-webservers-using-dirsearch-613e4a7fa8d5) by Raj Upadhyay
-- [Live Bug Bounty Recon Session on Yahoo (Amass, crts.sh, dirsearch) w/ @TheDawgyg](https://www.youtube.com/watch?v=u4dUnJ1U0T4) by Nahamsec
-- [Dirsearch to find Hidden Web Directories](https://medium.com/@irfaanshakeel/dirsearch-to-find-hidden-web-directories-d0357fbe47b0) by Irfan Shakeel
-- [Getting access to 25000 employees details](https://medium.com/@ehsahil/getting-access-to-25k-employees-details-c085d18b73f0) by Sahil Ahamad
-- [Best Tools For Directory Bruteforcing](https://secnhack.in/multiple-ways-to-find-hidden-directory-on-web-server/) by Shubham Goyal
-- [Discover hidden files & directories on a webserver - dirsearch full tutorial](https://www.youtube.com/watch?v=jVxs5at0gxg) by CYBER BYTES
-
-
 Tips
 ---------------
 - The server has requests limit? That's bad, but feel free to bypass it, by randomizing proxy with `--proxy-list`
@@ -671,14 +642,6 @@ Tips
 - Scan a list of URLs, but don't want to see a 429 flood? `--skip-on-status 429` will help you to skip a target whenever it returns 429
 - The server contains large files that slow down the scan? You *might* want to use `HEAD` HTTP method instead of `GET`
 - Brute-forcing CIDR is slow? Probably you forgot to reduce request timeout and request retries. Suggest: `--timeout 3 --retries 1`
-
-
-Contribution
----------------
-We have been receiving a lot of helps from many people around the world to improve this tool. Thanks so much to everyone who have helped us so far!
-See [CONTRIBUTORS.md](https://github.com/maurosoria/dirsearch/blob/master/CONTRIBUTORS.md) to know who they are.
-
-#### Pull requests and feature requests are welcomed
 
 
 License
