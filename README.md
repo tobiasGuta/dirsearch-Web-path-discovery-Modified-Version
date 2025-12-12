@@ -26,7 +26,7 @@ Instead of just saying "403 Forbidden", this tool analyzes the response body and
 *   **`--calibration`**: Automatically detects "Soft 403/404" responses (wildcards) to reduce false positives.
 *   **`--mutation`**: Automatically generates variations of found paths (e.g., finding `admin`, it checks `admin.bak`, `admin.old`, `v1` -> `v2`).
 *   **`--no-wildcard`**: Option to disable wildcard filtering completely for debugging WAFs.
-*   **`--bypass-waf`**: Integrated `cloudscraper` to bypass anti-bot protections.
+*   **`--bypass-waf`**: Integrated [`cloudscraper`](https://github.com/VeNoMouS/cloudscraper) to bypass anti-bot protections.
 *   **Smart User-Agents**: Uses `fake-useragent` library (if available) to generate realistic, up-to-date User-Agent strings.
 
 ### 4. Dynamic Dashboard
