@@ -212,7 +212,7 @@ class CLI:
         message = set_color(message, fore="blue", style="bright")
         self.new_line(message)
 
-    def print_header(self, headers):
+    def print_header(self, headers, headers_list=None):
         for key, value in headers.items():
             prefix = set_color("[+]", fore="green", style="bright")
             key_str = set_color(f"{key.upper():<12}", fore="white", style="bright")
@@ -220,27 +220,176 @@ class CLI:
             val_str = set_color(str(value), fore="cyan", style="bright")
             
             self.new_line(f"{prefix} {key_str} {sep} {val_str}")
+            
+        if headers_list:
+            for header in headers_list:
+                prefix = set_color("[+]", fore="green", style="bright")
+                key_str = set_color(f"{'HEADERS':<12}", fore="white", style="bright")
+                sep = set_color(":", fore="white", style="dim")
+                val_str = set_color(header, fore="cyan", style="bright")
+                self.new_line(f"{prefix} {key_str} {sep} {val_str}")
 
     def config(self, wordlist_size):
         config = {}
         
-        # We rely on self.target() being called separately or we can add it here if available
-        # But usually target is printed by self.target()
-        
+        # Basic Info
         config["Method"] = options["http_method"]
         config["Threads"] = str(options["thread_count"])
         config["Wordlist"] = f"{wordlist_size} items"
         
+        # Extensions
         if options["extensions"]:
             config["Extensions"] = ", ".join(options["extensions"])
+
+        # Recursion
+        if options["recursive"] or options["deep_recursive"] or options["force_recursive"]:
+            rec_status = "Enabled"
+            details = []
+            if options["recursion_depth"]:
+                details.append(f"Depth: {options['recursion_depth']}")
+            if options["force_recursive"]:
+                details.append("Forced")
+            if options["deep_recursive"]:
+                details.append("Deep")
             
+            if details:
+                rec_status += f" ({', '.join(details)})"
+            
+            config["Recursion"] = rec_status
+            
+            if options["recursion_status_codes"]:
+                config["Rec-Status"] = ", ".join(map(str, options["recursion_status_codes"]))
+
+        # Proxy
+        if options["proxies"]:
+            config["Proxy"] = ", ".join(options["proxies"])
+        elif options["proxies_file"]:
+            config["Proxy"] = f"File: {options['proxies_file']}"
+        elif options["tor"]:
+            config["Proxy"] = "Tor Network"
+
+        # WAF Bypass / Mode
+        if options["bypass_waf"]:
+            config["Mode"] = "WAF Bypass Active"
+            config["--bypass-waf"] = "YES"
+        
+        # Filters
+        filters = []
+        if options["exclude_status_codes"]:
+            filters.append(f"{', '.join(map(str, options['exclude_status_codes']))} (Status)")
+        if options["exclude_sizes"]:
+            filters.append(f"{', '.join(options['exclude_sizes'])} (Sizes)")
+        if options["exclude_texts"]:
+            filters.append(f"{len(options['exclude_texts'])} Texts")
+        if options["exclude_regex"]:
+            filters.append("Regex")
+            
+        if filters:
+            config["Ignore"] = ", ".join(filters)
+
+        # Payloads
         if options["prefixes"]:
             config["Prefixes"] = ", ".join(options["prefixes"])
-            
         if options["suffixes"]:
             config["Suffixes"] = ", ".join(options["suffixes"])
+            
+        # Output
+        if options["output_file"]:
+            config["Report"] = options["output_file"]
+            
+        # Explicit Flags (Requested by user)
+        if options["include_status_codes"]:
+             config["Codes"] = ", ".join(map(str, options["include_status_codes"]))
+             
+        if options["wordlists"]:
+             if isinstance(options["wordlists"], list):
+                 config["Wordlists"] = ", ".join(options["wordlists"])
+             else:
+                 config["Wordlists"] = str(options["wordlists"])
+             
+        if options["random_agents"]:
+             config["--random-agent"] = "YES"
 
-        self.print_header(config)
+        # Dynamic Boolean Flags
+        bool_flags = {
+            "async_mode": "--async",
+            "crawl": "--crawl",
+            "full_url": "--full-url",
+            "no_wildcard": "--no-wildcard",
+            "exit_on_error": "--exit-on-error",
+            "follow_redirects": "--follow-redirects",
+            "calibration": "--calibration",
+            "mutation": "--mutation",
+            "uppercase": "--uppercase",
+            "lowercase": "--lowercase",
+            "capital": "--capital",
+            "force_extensions": "--force-extensions",
+            "overwrite_extensions": "--overwrite-extensions",
+            "remove_extensions": "--remove-extensions",
+            "redirects_history": "--redirects-history",
+            "stdin_urls": "--stdin",
+        }
+        
+        for key, label in bool_flags.items():
+            if options.get(key):
+                config[label] = "YES"
+
+        # Dynamic Value Flags
+        value_flags = {
+            "user_agent": "User-Agent",
+            "cookie": "Cookie",
+            "auth": "Auth",
+            "auth_type": "Auth-Type",
+            "delay": "Delay",
+            "timeout": "Timeout",
+            "ip": "IP",
+            "max_rate": "Max-Rate",
+            "retries": "Retries",
+            "subdirs": "Subdirs",
+            "exclude_subdirs": "Ex-Subdirs",
+            "skip_on_status": "Skip-Status",
+            "data": "Data",
+            "cidr": "CIDR",
+            "minimum_response_size": "Min-Size",
+            "maximum_response_size": "Max-Size",
+            "max_time": "Max-Time",
+            "urls_file": "URLs File",
+            "raw_file": "Raw File",
+            "nmap_report": "Nmap Report",
+            "session_file": "Session File",
+            "exclude_extensions": "Exclude Exts",
+            "exclude_redirect": "Exclude Redirect",
+            "exclude_response": "Exclude Response",
+            "target_max_time": "Target Max-Time",
+            "data_file": "Data File",
+            "headers_file": "Headers File",
+            "cert_file": "Cert File",
+            "key_file": "Key File",
+            "proxy_auth": "Proxy Auth",
+            "replay_proxy": "Replay Proxy",
+            "scheme": "Scheme",
+            "network_interface": "Interface",
+            "output_formats": "Formats",
+            "mysql_url": "MySQL URL",
+            "postgres_url": "Postgres URL",
+            "log_file": "Log File",
+        }
+
+        for key, label in value_flags.items():
+            val = options.get(key)
+            if val:
+                if isinstance(val, list):
+                    config[label] = ", ".join(map(str, val))
+                else:
+                    config[label] = str(val)
+
+        # Headers
+        header_lines = []
+        if options["headers"]:
+            for key, value in options["headers"].items():
+                header_lines.append(f"{key}: {value}")
+
+        self.print_header(config, headers_list=header_lines)
 
     def target(self, target):
         self.new_line()
