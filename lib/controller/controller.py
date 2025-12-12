@@ -425,11 +425,9 @@ class Controller:
                 f"Skipped the target due to {response.status} status code"
             )
 
-        waf_name = None
-        if response.status == 403:
-            waf_name = WAF.detect(response)
+        waf_result = WAF.analyze(response)
 
-        interface.status_report(response, options["full_url"], waf_name)
+        interface.status_report(response, options["full_url"], waf_result)
 
         if response.status in options["recursion_status_codes"] and any(
             (

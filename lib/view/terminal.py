@@ -19,6 +19,7 @@
 import sys
 import shutil
 
+from colorama import Fore, Style
 from lib.core.data import options
 from lib.core.decorators import locked
 from lib.core.settings import IS_WINDOWS
@@ -85,35 +86,91 @@ class CLI:
             self.buffer += string
             self.buffer += "\n"
 
-    def status_report(self, response, full_url, waf_name=None):
-        target = response.url if full_url else "/" + response.full_path
-        # Get time from datetime string
-        time = response.datetime.split()[1]
-        message = f"[{time}] {response.status} - {response.size.rjust(6, ' ')} - {target}"
+    def get_type_color(self, waf_result, status):
+        source = waf_result.get("source", "Unknown")
         
-        if waf_name:
-            message += f"  [{waf_name}]"
+        # Default
+        code = "UNK"
+        color = Fore.WHITE
+        
+        if 200 <= status < 300:
+            code = "OK "
+            color = Fore.GREEN + Style.BRIGHT
+        elif 300 <= status < 400:
+            code = "RED"
+            color = Fore.YELLOW
+        elif status >= 400:
+            code = "ERR"
+            color = Fore.RED
+            
+        # Override based on WAF/Server detection
+        if "WAF" in source and "App Logic" not in source:
+            code = "WAF"
+            color = Fore.RED + Style.BRIGHT
+        elif "App Logic" in source:
+            code = "APP"
+            color = Fore.CYAN + Style.BRIGHT
+        elif any(x in source for x in ["Server", "Nginx", "Apache", "IIS", "Cloudflare", "AWS", "Infrastructure"]):
+            code = "SYS"
+            color = Fore.WHITE + Style.DIM
+            
+        return code, color
 
-        if response.status in (200, 201, 204):
-            message = set_color(message, fore="green")
-        elif response.status == 401:
-            message = set_color(message, fore="yellow")
-        elif response.status == 403:
-            message = set_color(message, fore="blue")
-        elif response.status in range(500, 600):
-            message = set_color(message, fore="red")
-        elif response.status in range(300, 400):
-            message = set_color(message, fore="cyan")
-        else:
-            message = set_color(message, fore="magenta")
-
+    def print_row(self, response, waf_result, full_url):
+        time_str = response.datetime.split()[1]
+        status_code = response.status
+        size_str = response.size
+        
+        type_code, type_color = self.get_type_color(waf_result, status_code)
+        
+        source_str = waf_result.get("source", "")
+        if source_str == "Unknown":
+            source_str = ""
+            
+        url_str = response.url if full_url else "/" + response.full_path
+        
+        # Append redirect info if present with colored arrow
         if response.redirect:
-            message += f"  ->  {response.redirect}"
-
+            arrow = set_color("->", fore="yellow", style="bright")
+            url_str += f" {arrow} {response.redirect}"
+        
+        # Pipe Color (Dark Grey / Bright Black)
+        PIPE = Fore.BLACK + Style.BRIGHT + " | " + Style.RESET_ALL
+        
+        # Formatting (Fixed Widths)
+        c_time = f"{time_str:<8}"
+        c_code = f"{str(status_code):<4}"
+        c_type = f"{type_code:<4}"
+        c_size = f"{size_str:<8}"
+        c_source = f"{source_str:<22}"
+        c_url = f"{url_str}"
+        
+        # Apply Colors to Content
+        if 200 <= status_code < 300:
+            c_code = Fore.GREEN + c_code + Style.RESET_ALL
+        elif 300 <= status_code < 400:
+            c_code = Fore.YELLOW + c_code + Style.RESET_ALL
+        elif status_code >= 400:
+            c_code = Fore.RED + c_code + Style.RESET_ALL
+            
+        c_type = type_color + c_type + Style.RESET_ALL
+        
+        # Construct the Row
+        row = f"{c_time}{PIPE}{c_code}{PIPE}{c_type}{PIPE}{c_size}{PIPE}{c_source}{PIPE}{c_url}"
+        self.new_line(row)
+        
+        # Print history (redirect chain) on new lines if needed
         for redirect in response.history:
-            message += f"\n-->  {redirect}"
+            arrow = set_color("-->", fore="yellow", style="bright")
+            self.new_line(f"{arrow} {redirect}")
 
-        self.new_line(message)
+    def status_report(self, response, full_url, waf_result=None):
+        if waf_result is None:
+            waf_result = {"source": "Unknown", "waf_present": False}
+        elif isinstance(waf_result, str):
+             waf_result = {"source": waf_result, "waf_present": True}
+             
+        self.print_row(response, waf_result, full_url)
 
     def last_path(self, index, length, current_job, all_jobs, rate, errors):
         percentage = int(index / length * 100)
@@ -152,44 +209,36 @@ class CLI:
         self.new_line(message, do_save=do_save)
 
     def header(self, message):
-        message = set_color(message, fore="magenta", style="bright")
+        message = set_color(message, fore="blue", style="bright")
         self.new_line(message)
 
     def print_header(self, headers):
-        msg = []
-
         for key, value in headers.items():
-            new = set_color(key + ": ", fore="yellow", style="bright")
-            new += set_color(value, fore="cyan", style="bright")
-
-            if (
-                not msg
-                or len(clean_color(msg[-1]) + clean_color(new)) + 3
-                >= shutil.get_terminal_size()[0]
-            ):
-                msg.append("")
-            else:
-                msg[-1] += set_color(" | ", fore="magenta", style="bright")
-
-            msg[-1] += new
-
-        self.new_line("\n".join(msg))
+            prefix = set_color("[+]", fore="green", style="bright")
+            key_str = set_color(f"{key.upper():<12}", fore="white", style="bright")
+            sep = set_color(":", fore="white", style="dim")
+            val_str = set_color(str(value), fore="cyan", style="bright")
+            
+            self.new_line(f"{prefix} {key_str} {sep} {val_str}")
 
     def config(self, wordlist_size):
-
         config = {}
-        config["Extensions"] = ", ".join(options["extensions"])
-
+        
+        # We rely on self.target() being called separately or we can add it here if available
+        # But usually target is printed by self.target()
+        
+        config["Method"] = options["http_method"]
+        config["Threads"] = str(options["thread_count"])
+        config["Wordlist"] = f"{wordlist_size} items"
+        
+        if options["extensions"]:
+            config["Extensions"] = ", ".join(options["extensions"])
+            
         if options["prefixes"]:
             config["Prefixes"] = ", ".join(options["prefixes"])
+            
         if options["suffixes"]:
             config["Suffixes"] = ", ".join(options["suffixes"])
-
-        config.update({
-            "HTTP method": options["http_method"],
-            "Threads": str(options["thread_count"]),
-            "Wordlist size": str(wordlist_size),
-        })
 
         self.print_header(config)
 

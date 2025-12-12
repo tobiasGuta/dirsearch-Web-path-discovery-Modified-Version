@@ -27,8 +27,13 @@ from lib.utils.file import FileUtils
 VERSION = "0.4.3"
 
 BANNER = f"""
-  _|. _ _  _  _  _ _|_    v{VERSION}
- (_||| _) (/_(_|| (_| )
+      _ _                              _     
+   __| (_)_ __ ___  ___  __ _ _ __ ___| |__  
+  / _` | | '__/ __|/ _ \/ _` | '__/ __| '_ \ 
+ | (_| | | |  \__ \  __/ (_| | | | (__| | | |
+  \__,_|_|_|  |___/\___|\__,_|_|  \___|_| |_|
+                                             
+  v{VERSION} | Modified Version
 """
 
 COMMAND = " ".join(sys.argv)
