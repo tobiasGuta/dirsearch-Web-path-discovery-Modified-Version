@@ -2,7 +2,7 @@
 
 > **Note:** This is a highly modified version of the original [dirsearch](https://github.com/maurosoria/dirsearch). It has been enhanced with forensic-grade output, advanced WAF detection, and smart fuzzing capabilities.
 
-## 🚀 Key Features
+## Key Features
 
 ### 1. Forensic-Grade Output
 Gone are the emojis and messy text. This version features a strict, pipe-separated table designed for professional analysis.
@@ -34,7 +34,7 @@ The startup banner is now a dynamic dashboard that confirms **exactly** what is 
 
 ---
 
-## 📥 Installation
+## Installation
 
 **Requirement: Python 3.9 or higher**
 
@@ -51,7 +51,7 @@ The startup banner is now a dynamic dashboard that confirms **exactly** what is 
 
 ---
 
-## 🛠️ Usage
+## Usage
 
 ```bash
 python3 dirsearch.py -u <URL> [options]
@@ -91,7 +91,7 @@ python3 dirsearch.py -u https://target.com -H "Authorization: Bearer 123" -i 200
 
 ---
 
-## 📊 Understanding the Output
+## Understanding the Output
 
 The output is designed to be parsed visually or by tools.
 
@@ -115,7 +115,7 @@ The output is designed to be parsed visually or by tools.
 
 ---
 
-## 📝 Full Options
+## Full Options
 
 ```text
 Usage: dirsearch.py [-u|--url] target [-e|--extensions] extensions [options]
