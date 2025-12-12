@@ -201,4 +201,4 @@ Options:
 
 ---
 
-*Original dirsearch by Mauro Soria. Modifications by [Your Name/Team].*
+*Original dirsearch by Mauro Soria. Modifications by me.*
