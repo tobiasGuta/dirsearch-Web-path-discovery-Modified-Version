@@ -72,6 +72,7 @@ class BaseRequester:
         self.proxy_cred = options["proxy_auth"]
         self.headers = CaseInsensitiveDict(options["headers"])
         self.agents: list[str] = []
+        self.ua = None
         self.session = None
 
         self._cert = None
@@ -89,7 +90,11 @@ class BaseRequester:
             )
 
         if options["random_agents"]:
-            self._fetch_agents()
+            try:
+                from fake_useragent import UserAgent
+                self.ua = UserAgent()
+            except ImportError:
+                self._fetch_agents()
 
         # Guess the mime type of request data if not specified
         if options["data"] and "content-type" not in self.headers:
@@ -226,8 +231,11 @@ class Requester(BaseRequester):
                 except IndexError:
                     pass
 
-                if self.agents and not options["bypass_waf"]:
-                    self.set_header("user-agent", random.choice(self.agents))
+                if not options["bypass_waf"]:
+                    if self.ua:
+                        self.set_header("user-agent", self.ua.random)
+                    elif self.agents:
+                        self.set_header("user-agent", random.choice(self.agents))
 
                 if options["bypass_waf"]:
                     # When bypassing WAF, we must use session.request() to allow cloudscraper
@@ -418,7 +426,9 @@ class AsyncRequester(BaseRequester):
 
         for _ in range(options["max_retries"] + 1):
             try:
-                if self.agents:
+                if self.ua:
+                    self.set_header("user-agent", self.ua.random)
+                elif self.agents:
                     self.set_header("user-agent", random.choice(self.agents))
 
                 # Use "target" extension to avoid the URL path from being normalized
