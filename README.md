@@ -40,11 +40,15 @@ Table of Contents
 Modifications
 ------------
 This version includes the following enhancements:
-- **WAF Detection**: Automatically detects if a WAF (Web Application Firewall) is present (e.g., Cloudflare, CloudFront, Incapsula) and warns the user.
+- **WAF Detection**: Automatically detects if a WAF (Web Application Firewall) is present (e.g., Cloudflare, CloudFront, Incapsula, AWS WAF) and warns the user.
+  - **Smart Fingerprinting**: Distinguishes between "True WAF Blocks" and "Application Logic Errors" (e.g., a 403 from Cloudflare vs. a 403 from the backend app).
+  - **Server Detection**: Identifies Nginx, Apache, and IIS server blocks.
 - **WAF Bypass**: Added `--bypass-waf` flag to use `cloudscraper` for bypassing WAF protections like Cloudflare's "Under Attack Mode".
   - **Browser Emulation**: Initializes a real Chrome browser profile to solve JavaScript challenges.
   - **Header Synchronization**: Automatically syncs headers between the solver and the scanner to prevent detection.
-  - **Custom Header Priority**: Allows custom headers (e.g., mobile User-Agents) to override default browser headers while maintaining the bypass session.
+- **Smart Calibration**: Added `--calibration` to detect "Soft 403/404" responses where WAFs return 200 OK or 403 Forbidden for everything.
+- **Mutation Fuzzing**: Added `--mutation` to automatically generate variations of found paths (e.g., `admin` -> `admin.bak`, `v1` -> `v2`).
+- **Wildcard Control**: Added `--no-wildcard` to disable wildcard filtering and show all results (useful for debugging WAFs).
 - **Enhanced Crawling**: Improved JavaScript and text crawling capabilities.
 
 Installation & Usage
@@ -161,6 +165,8 @@ Options:
     --suffixes=SUFFIXES
                         Add custom suffixes to all wordlist entries, ignore
                         directories (separated by commas)
+    --mutation          Apply mutation techniques to discovered paths (e.g.
+                        backups, versions)
     -U, --uppercase     Uppercase wordlist
     -L, --lowercase     Lowercase wordlist
     -C, --capital       Capital wordlist
@@ -203,6 +209,7 @@ Options:
     --exclude-response=PATH
                         Exclude responses similar to response of this page,
                         path as input (e.g. 404.html)
+    --no-wildcard       Disable wildcard detection (show all results)
     --skip-on-status=CODES
                         Skip target whenever hit one of these status codes,
                         separated by commas, support ranges
@@ -212,6 +219,9 @@ Options:
                         Maximum response length
     --max-time=SECONDS  Maximum runtime for the scan
     --exit-on-error     Exit whenever an error occurs
+    --bypass-waf        Try to bypass WAF using cloudscraper (requires
+                        cloudscraper installed)
+    --calibration       Perform calibration to detect soft 403/404 responses
 
   Request Settings:
     -m METHOD, --http-method=METHOD

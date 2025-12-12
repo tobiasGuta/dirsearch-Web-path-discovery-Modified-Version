@@ -57,8 +57,10 @@ class BaseScanner:
         """
         Perform analyzing to see if the response is wildcard or not
         """
+        if options["no_wildcard"]:
+            return True
 
-        if self.response.status != response.status:
+        if not options["calibration"] and self.response.status != response.status:
             return True
 
         # See the comment in generate_redirect_regex() to understand better
@@ -143,6 +145,8 @@ class Scanner(BaseScanner):
         Generate wildcard response information containers, this will be
         used to compare with other path responses
         """
+        if options["no_wildcard"]:
+            return
 
         first_path = self.path.replace(
             WILDCARD_TEST_POINT_MARKER,
@@ -213,6 +217,8 @@ class AsyncScanner(BaseScanner):
         Generate wildcard response information containers, this will be
         used to compare with other path responses
         """
+        if options["no_wildcard"]:
+            return
 
         first_path = self.path.replace(
             WILDCARD_TEST_POINT_MARKER,

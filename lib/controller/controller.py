@@ -25,6 +25,7 @@ import signal
 import psycopg
 import re
 import time
+import uuid
 import mysql.connector
 try:
     import cPickle as pickle
@@ -59,12 +60,14 @@ from lib.core.settings import (
     STANDARD_PORTS,
     UNKNOWN,
 )
+from lib.core.waf import WAF
 from lib.parse.rawrequest import parse_raw
 from lib.parse.url import clean_path, parse_path
 from lib.report.manager import ReportManager
 from lib.utils.common import lstrip_once
 from lib.utils.crawl import Crawler
 from lib.utils.file import FileUtils
+from lib.utils.mutation import Mutator
 from lib.utils.schemedet import detect_scheme
 from lib.view.terminal import interface
 
@@ -132,6 +135,7 @@ class Controller:
         self.jobs_processed = 0
         self.errors = 0
         self.consecutive_errors = 0
+        self.consecutive_filtered = 0
 
         if options["log_file"]:
             try:
@@ -191,7 +195,7 @@ class Controller:
             self.match_callback, self.reporter.save, self.reset_consecutive_errors
         )
         not_found_callbacks = (
-            self.update_progress_bar, self.reset_consecutive_errors
+            self.update_progress_bar, self.reset_consecutive_errors, self.track_filtered
         )
         error_callbacks = (self.raise_error, self.append_error_log)
 
@@ -337,6 +341,13 @@ class Controller:
 
             break
 
+    def calibrate(self) -> None:
+        interface.warning("Calibrating...")
+        random_path = str(uuid.uuid4())
+        response = self.requester.request(random_path)
+        options["calibration_response"] = response
+        interface.warning(f"Calibration response: {response.status} - {response.length}B")
+
     def set_target(self, url: str) -> None:
         # If no scheme specified, unset it first
         if "://" not in url:
@@ -387,16 +398,38 @@ class Controller:
 
         self.requester.set_url(self.url)
 
+        if options["bypass_waf"]:
+             # Check root
+             try:
+                 root_resp = self.requester.request("/")
+                 if root_resp.status == 403:
+                      interface.warning("Critical: The root path '/' returned 403 Forbidden. WAF bypass might have failed.")
+             except:
+                 pass
+
+        if options["calibration"]:
+            self.calibrate()
+
     def reset_consecutive_errors(self, response: BaseResponse) -> None:
         self.consecutive_errors = 0
 
+    def track_filtered(self, response: BaseResponse) -> None:
+        self.consecutive_filtered += 1
+        if self.consecutive_filtered == 100 and response.status == 403:
+             interface.warning("Warning: 100 consecutive requests were filtered. If the wildcard response is 403, you are likely blocked by the WAF.")
+
     def match_callback(self, response: BaseResponse) -> None:
+        self.consecutive_filtered = 0
         if response.status in options["skip_on_status"]:
             raise SkipTargetInterrupt(
                 f"Skipped the target due to {response.status} status code"
             )
 
-        interface.status_report(response, options["full_url"])
+        waf_name = None
+        if response.status == 403:
+            waf_name = WAF.detect(response)
+
+        interface.status_report(response, options["full_url"], waf_name)
 
         if response.status in options["recursion_status_codes"] and any(
             (
@@ -426,6 +459,13 @@ class Controller:
 
         if options["crawl"]:
             for path in Crawler.crawl(response):
+                if not self.dictionary.is_valid(path):
+                    continue
+                path = lstrip_once(path, self.base_path)
+                self.dictionary.add_extra(path)
+
+        if options["mutation"]:
+            for path in Mutator.mutate(response.path):
                 if not self.dictionary.is_valid(path):
                     continue
                 path = lstrip_once(path, self.base_path)

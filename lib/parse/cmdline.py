@@ -129,6 +129,12 @@ def parse_arguments() -> Values:
         help="Add custom suffixes to all wordlist entries, ignore directories (separated by commas)",
     )
     dictionary.add_option(
+        "--mutation",
+        action="store_true",
+        dest="mutation",
+        help="Mutate found paths to discover more",
+    )
+    dictionary.add_option(
         "-U",
         "--uppercase",
         action="store_true",
@@ -277,6 +283,12 @@ def parse_arguments() -> Values:
         help="Exclude responses similar to response of this page, path as input (e.g. 404.html)",
     )
     general.add_option(
+        "--no-wildcard",
+        action="store_true",
+        dest="no_wildcard",
+        help="Disable wildcard detection (show all results)",
+    )
+    general.add_option(
         "--skip-on-status",
         action="store",
         dest="skip_on_status",
@@ -328,6 +340,12 @@ def parse_arguments() -> Values:
         action="store_true",
         dest="bypass_waf",
         help="Try to bypass WAF using cloudscraper (requires cloudscraper installed)",
+    )
+    general.add_option(
+        "--calibration",
+        action="store_true",
+        dest="calibration",
+        help="Perform calibration to detect soft 403/404 responses",
     )
 
     # Request Settings

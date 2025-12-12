@@ -166,6 +166,16 @@ class Fuzzer(BaseFuzzer):
         self.scanners["default"]["random"] = Scanner(
             self._requester, path=self._base_path + WILDCARD_TEST_POINT_MARKER
         )
+        
+        # Report wildcard response
+        if not options["no_wildcard"]:
+            wildcard_response = self.scanners["default"]["random"].response
+            if wildcard_response:
+                waf_name = WAF.detect(wildcard_response)
+                msg = f"Wildcard response: {wildcard_response.status} - {wildcard_response.size}"
+                if waf_name:
+                    msg += f" [{waf_name}]"
+                print(msg)
 
         # Check for WAF on the base path first
         try:
@@ -341,6 +351,16 @@ class AsyncFuzzer(BaseFuzzer):
                 ),
             }
         )
+        
+        # Report wildcard response
+        if not options["no_wildcard"]:
+            wildcard_response = self.scanners["default"]["random"].response
+            if wildcard_response:
+                waf_name = WAF.detect(wildcard_response)
+                msg = f"Wildcard response: {wildcard_response.status} - {wildcard_response.size}"
+                if waf_name:
+                    msg += f" [{waf_name}]"
+                print(msg)
 
         # Check for WAF on the base path first
         try:

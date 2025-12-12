@@ -37,6 +37,7 @@ options: dict[str, Any] = {
     "exclude_extensions": (),
     "prefixes": (),
     "suffixes": (),
+    "mutation": False,
     "uppercase": False,
     "lowercase": False,
     "capitalization": False,
@@ -56,6 +57,7 @@ options: dict[str, Any] = {
     "exclude_regex": None,
     "exclude_redirect": None,
     "exclude_response": None,
+    "no_wildcard": False,
     "skip_on_status": set(),
     "minimum_response_size": 0,
     "maximum_response_size": 0,
@@ -100,5 +102,7 @@ options: dict[str, Any] = {
     "mysql_url": None,
     "postgres_url": None,
     "log_file": None,
-    "log_file_size": 0
+    "log_file_size": 0,
+    "calibration": False,
+    "calibration_response": None,
 }

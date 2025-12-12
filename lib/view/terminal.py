@@ -85,11 +85,14 @@ class CLI:
             self.buffer += string
             self.buffer += "\n"
 
-    def status_report(self, response, full_url):
+    def status_report(self, response, full_url, waf_name=None):
         target = response.url if full_url else "/" + response.full_path
         # Get time from datetime string
         time = response.datetime.split()[1]
         message = f"[{time}] {response.status} - {response.size.rjust(6, ' ')} - {target}"
+        
+        if waf_name:
+            message += f"  [{waf_name}]"
 
         if response.status in (200, 201, 204):
             message = set_color(message, fore="green")
