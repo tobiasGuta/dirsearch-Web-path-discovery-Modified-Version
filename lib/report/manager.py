@@ -31,23 +31,27 @@ from lib.report.simple_report import SimpleReport
 from lib.report.sqlite_report import SQLiteReport
 from lib.report.xml_report import XMLReport
 
-output_handlers = {
-    "simple": (SimpleReport, [options["output_file"]]),
-    "plain": (PlainTextReport, [options["output_file"]]),
-    "json": (JSONReport, [options["output_file"]]),
-    "xml": (XMLReport, [options["output_file"]]),
-    "md": (MarkdownReport, [options["output_file"]]),
-    "csv": (CSVReport, [options["output_file"]]),
-    "html": (HTMLReport, [options["output_file"]]),
-    "sqlite": (SQLiteReport, [options["output_file"], options["output_table"]]),
-    "mysql": (MySQLReport, [options["mysql_url"], options["output_table"]]),
-    "postgresql": (PostgreSQLReport, [options["postgres_url"], options["output_table"]]),
-}
-
+# We need to defer the creation of output_handlers until we are inside __init__
+# because options is now a Config object and its attributes might not be populated yet
+# or we want to access them dynamically.
 
 class ReportManager:
     def __init__(self, formats):
         self.reports = []
+        
+        # Define handlers dynamically to access current options
+        output_handlers = {
+            "simple": (SimpleReport, [options.output_file]),
+            "plain": (PlainTextReport, [options.output_file]),
+            "json": (JSONReport, [options.output_file]),
+            "xml": (XMLReport, [options.output_file]),
+            "md": (MarkdownReport, [options.output_file]),
+            "csv": (CSVReport, [options.output_file]),
+            "html": (HTMLReport, [options.output_file]),
+            "sqlite": (SQLiteReport, [options.output_file, options.output_table]),
+            "mysql": (MySQLReport, [options.mysql_url, options.output_table]),
+            "postgresql": (PostgreSQLReport, [options.postgres_url, options.output_table]),
+        }
 
         for format in formats:
             # No output location provided

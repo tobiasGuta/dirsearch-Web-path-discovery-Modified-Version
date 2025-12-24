@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from optparse import Values
-from typing import Any
+from typing import Any, Dict
 from lib.core.settings import (
     AUTHENTICATION_TYPES,
     COMMON_EXTENSIONS,
@@ -35,7 +35,7 @@ from lib.utils.file import File, FileUtils
 from lib.parse.nmap import parse_nmap
 
 
-def parse_options() -> dict[str, Any]:
+def parse_options() -> Dict[str, Any]:
     opt = merge_config(parse_arguments())
 
     if opt.session_file:

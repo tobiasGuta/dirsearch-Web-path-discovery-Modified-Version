@@ -20,6 +20,7 @@
 
 import sys
 import warnings
+import os
 
 from lib.core.data import options
 from lib.core.exceptions import FailedDependenciesInstallation
@@ -39,10 +40,17 @@ def main():
     config = ConfigParser()
     config.read(OPTIONS_FILE)
 
+    # Check for non-interactive mode environment variable
+    non_interactive = os.environ.get("DIRSEARCH_NON_INTERACTIVE", "False").lower() == "true"
+
     if config.safe_getboolean("options", "check-dependencies", False):
         try:
             check_dependencies()
         except Exception:
+            if non_interactive:
+                print("Missing required dependencies. Skipping auto-install in non-interactive mode.")
+                sys.exit(1)
+                
             option = input("Missing required dependencies to run.\n"
                            "Do you want dirsearch to automatically install them? [Y/n] ")
 
@@ -65,8 +73,12 @@ def main():
 
     options.update(parse_options())
 
-    if options["session_file"]:
+    if options.session_file:
         print("WARNING: Running an untrusted session file might lead to unwanted code execution!")
+        if non_interactive:
+             print("Aborting session load in non-interactive mode.")
+             sys.exit(1)
+
         if input("[c]ontinue / [q]uit: ") != "c":
             exit(1)
 

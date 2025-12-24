@@ -19,7 +19,8 @@
 from __future__ import annotations
 
 import os
-import os.path
+from pathlib import Path
+from typing import Union, List
 
 
 class File:
@@ -63,86 +64,84 @@ class FileUtils:
     @staticmethod
     def build_path(*path_components: str) -> str:
         if path_components:
-            path = os.path.join(*path_components)
-        else:
-            path = ""
-
-        return path
+            return str(Path(*path_components))
+        return ""
 
     @staticmethod
-    def get_abs_path(file_name):
-        return os.path.abspath(file_name)
+    def get_abs_path(file_name: str) -> str:
+        return str(Path(file_name).resolve())
 
     @staticmethod
-    def exists(file_name):
-        return os.access(file_name, os.F_OK)
+    def exists(file_name: str) -> bool:
+        return Path(file_name).exists()
 
     @staticmethod
-    def is_empty(file_name):
-        return os.stat(file_name).st_size == 0
+    def is_empty(file_name: str) -> bool:
+        return Path(file_name).stat().st_size == 0
 
     @staticmethod
-    def can_read(file_name):
+    def can_read(file_name: str) -> bool:
         try:
             with open(file_name):
                 pass
         except OSError:
             return False
-
         return True
 
     @classmethod
-    def can_write(cls, path):
-        while not cls.exists(path):
-            path = cls.parent(path)
-
-        return os.access(path, os.W_OK)
+    def can_write(cls, path: str) -> bool:
+        p = Path(path)
+        while not p.exists():
+            p = p.parent
+            if str(p) == str(p.parent): # Root
+                break
+        return os.access(str(p), os.W_OK)
 
     @staticmethod
-    def read(file_name):
-        return open(file_name, "r").read()
+    def read(file_name: str) -> str:
+        return Path(file_name).read_text(encoding="utf-8", errors="replace")
 
     @classmethod
-    def get_files(cls, directory):
+    def get_files(cls, directory: str) -> List[str]:
         files = []
-
-        for path in os.listdir(directory):
-            path = os.path.join(directory, path)
-            if cls.is_dir(path):
-                files.extend(cls.get_files(path))
-            else:
-                files.append(path)
-
+        p = Path(directory)
+        if not p.exists():
+            return []
+            
+        for item in p.rglob("*"):
+            if item.is_file():
+                files.append(str(item))
         return files
 
     @staticmethod
-    def get_lines(file_name: str) -> list[str]:
+    def get_lines(file_name: str) -> List[str]:
         with open(file_name, "r", errors="replace") as fd:
             return fd.read().splitlines()
 
     @staticmethod
-    def is_dir(path):
-        return os.path.isdir(path)
+    def is_dir(path: str) -> bool:
+        return Path(path).is_dir()
 
     @staticmethod
-    def is_file(path):
-        return os.path.isfile(path)
+    def is_file(path: str) -> bool:
+        return Path(path).is_file()
 
     @staticmethod
-    def parent(path, depth=1):
+    def parent(path: str, depth: int = 1) -> str:
+        p = Path(path)
         for _ in range(depth):
-            path = os.path.dirname(path)
-
-        return path
+            p = p.parent
+        return str(p)
 
     @classmethod
-    def create_dir(cls, directory):
-        if not cls.exists(directory):
-            os.makedirs(directory, exist_ok=True)
+    def create_dir(cls, directory: str) -> None:
+        Path(directory).mkdir(parents=True, exist_ok=True)
 
     @staticmethod
-    def write_lines(file_name, lines, overwrite=False):
+    def write_lines(file_name: str, lines: Union[List[str], str], overwrite: bool = False) -> None:
+        mode = "w" if overwrite else "a"
         if isinstance(lines, list):
             lines = os.linesep.join(lines)
-        with open(file_name, "w" if overwrite else "a") as f:
+        
+        with open(file_name, mode) as f:
             f.writelines(lines)

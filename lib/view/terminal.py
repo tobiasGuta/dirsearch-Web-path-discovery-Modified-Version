@@ -38,7 +38,7 @@ class CLI:
         self.last_in_line = False
         self.buffer = ""
 
-        if not options["color"]:
+        if not options.color:
             disable_color()
 
     @staticmethod
@@ -173,7 +173,7 @@ class CLI:
         self.print_row(response, waf_result, full_url)
 
     def last_path(self, index, length, current_job, all_jobs, rate, errors):
-        percentage = int(index / length * 100)
+        percentage = int(index / length * 100) if length > 0 else 0
         task = set_color("#", fore="cyan", style="bright") * int(percentage / 5)
         task += " " * (20 - int(percentage / 5))
         progress = f"{index}/{length}"
@@ -233,23 +233,23 @@ class CLI:
         config = {}
         
         # Basic Info
-        config["Method"] = options["http_method"]
-        config["Threads"] = str(options["thread_count"])
+        config["Method"] = options.http_method
+        config["Threads"] = str(options.thread_count)
         config["Wordlist"] = f"{wordlist_size} items"
         
         # Extensions
-        if options["extensions"]:
-            config["Extensions"] = ", ".join(options["extensions"])
+        if options.extensions:
+            config["Extensions"] = ", ".join(options.extensions)
 
         # Recursion
-        if options["recursive"] or options["deep_recursive"] or options["force_recursive"]:
+        if options.recursive or options.deep_recursive or options.force_recursive:
             rec_status = "Enabled"
             details = []
-            if options["recursion_depth"]:
-                details.append(f"Depth: {options['recursion_depth']}")
-            if options["force_recursive"]:
+            if options.recursion_depth:
+                details.append(f"Depth: {options.recursion_depth}")
+            if options.force_recursive:
                 details.append("Forced")
-            if options["deep_recursive"]:
+            if options.deep_recursive:
                 details.append("Deep")
             
             if details:
@@ -257,57 +257,57 @@ class CLI:
             
             config["Recursion"] = rec_status
             
-            if options["recursion_status_codes"]:
-                config["Rec-Status"] = ", ".join(map(str, options["recursion_status_codes"]))
+            if options.recursion_status_codes:
+                config["Rec-Status"] = ", ".join(map(str, options.recursion_status_codes))
 
         # Proxy
-        if options["proxies"]:
-            config["Proxy"] = ", ".join(options["proxies"])
-        elif options["proxies_file"]:
-            config["Proxy"] = f"File: {options['proxies_file']}"
-        elif options["tor"]:
+        if options.proxies:
+            config["Proxy"] = ", ".join(options.proxies)
+        elif options.proxies_file:
+            config["Proxy"] = f"File: {options.proxies_file}"
+        elif options.tor:
             config["Proxy"] = "Tor Network"
 
         # WAF Bypass / Mode
-        if options["bypass_waf"]:
+        if options.bypass_waf:
             config["Mode"] = "WAF Bypass Active"
             config["--bypass-waf"] = "YES"
         
         # Filters
         filters = []
-        if options["exclude_status_codes"]:
-            filters.append(f"{', '.join(map(str, options['exclude_status_codes']))} (Status)")
-        if options["exclude_sizes"]:
-            filters.append(f"{', '.join(options['exclude_sizes'])} (Sizes)")
-        if options["exclude_texts"]:
-            filters.append(f"{len(options['exclude_texts'])} Texts")
-        if options["exclude_regex"]:
+        if options.exclude_status_codes:
+            filters.append(f"{', '.join(map(str, options.exclude_status_codes))} (Status)")
+        if options.exclude_sizes:
+            filters.append(f"{', '.join(options.exclude_sizes)} (Sizes)")
+        if options.exclude_texts:
+            filters.append(f"{len(options.exclude_texts)} Texts")
+        if options.exclude_regex:
             filters.append("Regex")
             
         if filters:
             config["Ignore"] = ", ".join(filters)
 
         # Payloads
-        if options["prefixes"]:
-            config["Prefixes"] = ", ".join(options["prefixes"])
-        if options["suffixes"]:
-            config["Suffixes"] = ", ".join(options["suffixes"])
+        if options.prefixes:
+            config["Prefixes"] = ", ".join(options.prefixes)
+        if options.suffixes:
+            config["Suffixes"] = ", ".join(options.suffixes)
             
         # Output
-        if options["output_file"]:
-            config["Report"] = options["output_file"]
+        if options.output_file:
+            config["Report"] = options.output_file
             
         # Explicit Flags (Requested by user)
-        if options["include_status_codes"]:
-             config["Codes"] = ", ".join(map(str, options["include_status_codes"]))
+        if options.include_status_codes:
+             config["Codes"] = ", ".join(map(str, options.include_status_codes))
              
-        if options["wordlists"]:
-             if isinstance(options["wordlists"], list):
-                 config["Wordlists"] = ", ".join(options["wordlists"])
+        if options.wordlists:
+             if isinstance(options.wordlists, list):
+                 config["Wordlists"] = ", ".join(options.wordlists)
              else:
-                 config["Wordlists"] = str(options["wordlists"])
+                 config["Wordlists"] = str(options.wordlists)
              
-        if options["random_agents"]:
+        if options.random_agents:
              config["--random-agent"] = "YES"
 
         # Dynamic Boolean Flags
@@ -331,7 +331,7 @@ class CLI:
         }
         
         for key, label in bool_flags.items():
-            if options.get(key):
+            if getattr(options, key, False):
                 config[label] = "YES"
 
         # Dynamic Value Flags
@@ -376,7 +376,7 @@ class CLI:
         }
 
         for key, label in value_flags.items():
-            val = options.get(key)
+            val = getattr(options, key, None)
             if val:
                 if isinstance(val, list):
                     config[label] = ", ".join(map(str, val))
@@ -385,8 +385,8 @@ class CLI:
 
         # Headers
         header_lines = []
-        if options["headers"]:
-            for key, value in options["headers"].items():
+        if options.headers:
+            for key, value in options.headers.items():
                 header_lines.append(f"{key}: {value}")
 
         self.print_header(config, headers_list=header_lines)
@@ -433,4 +433,4 @@ class EmptyCLI(QuietCLI):
         pass
 
 
-interface = EmptyCLI() if options["disable_cli"] else QuietCLI() if options["quiet"] else CLI()
+interface = EmptyCLI() if options.disable_cli else QuietCLI() if options.quiet else CLI()

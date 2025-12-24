@@ -69,27 +69,27 @@ class BaseRequester:
     def __init__(self) -> None:
         self._url: str = ""
         self._rate = 0
-        self.proxy_cred = options["proxy_auth"]
-        self.headers = CaseInsensitiveDict(options["headers"])
+        self.proxy_cred = options.proxy_auth
+        self.headers = CaseInsensitiveDict(options.headers)
         self.agents: list[str] = []
         self.ua = None
         self.session = None
 
         self._cert = None
-        if options["cert_file"] and options["key_file"]:
-            self._cert = (options["cert_file"], options["key_file"])
+        if options.cert_file and options.key_file:
+            self._cert = (options.cert_file, options.key_file)
 
         self._socket_options = []
-        if options["network_interface"]:
+        if options.network_interface:
             self._socket_options.append(
                 (
                     socket.SOL_SOCKET,
                     socket.SO_BINDTODEVICE,
-                    options["network_interface"].encode("utf-8"),
+                    options.network_interface.encode("utf-8"),
                 )
             )
 
-        if options["random_agents"]:
+        if options.random_agents:
             try:
                 from fake_useragent import UserAgent
                 self.ua = UserAgent()
@@ -97,8 +97,8 @@ class BaseRequester:
                 self._fetch_agents()
 
         # Guess the mime type of request data if not specified
-        if options["data"] and "content-type" not in self.headers:
-            self.set_header("content-type", guess_mimetype(options["data"]))
+        if options.data and "content-type" not in self.headers:
+            self.set_header("content-type", guess_mimetype(options.data))
 
     def _fetch_agents(self) -> None:
         self.agents = FileUtils.get_lines(
@@ -112,7 +112,7 @@ class BaseRequester:
         self.headers[key] = value.lstrip()
 
     def is_rate_exceeded(self) -> bool:
-        return self._rate >= options["max_rate"] > 0
+        return self._rate >= options.max_rate > 0
 
     def decrease_rate(self) -> None:
         self._rate -= 1
@@ -149,12 +149,12 @@ class Requester(BaseRequester):
                 scheme,
                 SocketOptionsAdapter(
                     max_retries=0,
-                    pool_maxsize=options["thread_count"],
+                    pool_maxsize=options.thread_count,
                     socket_options=self._socket_options,
                 ),
             )
 
-        if options["bypass_waf"]:
+        if options.bypass_waf:
             if cloudscraper:
                 try:
                     self.session = cloudscraper.create_scraper(
@@ -171,8 +171,8 @@ class Requester(BaseRequester):
                     
                     # Re-apply user-provided headers to override cloudscraper defaults if specified
                     # This allows the user to set a specific User-Agent or Accept header if needed
-                    if options["headers"]:
-                        for k, v in options["headers"].items():
+                    if options.headers:
+                        for k, v in options.headers.items():
                             self.headers[k] = v
                 except Exception as e:
                     logger.warning(f"Failed to initialize cloudscraper: {e}")
@@ -181,8 +181,8 @@ class Requester(BaseRequester):
                 import sys
                 sys.exit(1)
 
-        if options["auth"]:
-            self.set_auth(options["auth_type"], options["auth"])
+        if options.auth:
+            self.set_auth(options.auth_type, options.auth)
 
     def set_auth(self, type: str, credential: str) -> None:
         if type in ("bearer", "jwt"):
@@ -213,11 +213,11 @@ class Requester(BaseRequester):
         url = self._url + safequote(path)
 
         # Why using a loop instead of max_retries argument? Check issue #1009
-        for _ in range(options["max_retries"] + 1):
+        for _ in range(options.max_retries + 1):
             try:
                 proxies = {}
                 try:
-                    proxy_url = proxy or random.choice(options["proxies"])
+                    proxy_url = proxy or random.choice(options.proxies)
                     if not proxy_url.startswith(PROXY_SCHEMES):
                         proxy_url = f"http://{proxy_url}"
 
@@ -231,23 +231,23 @@ class Requester(BaseRequester):
                 except IndexError:
                     pass
 
-                if not options["bypass_waf"]:
+                if not options.bypass_waf:
                     if self.ua:
                         self.set_header("user-agent", self.ua.random)
                     elif self.agents:
                         self.set_header("user-agent", random.choice(self.agents))
 
-                if options["bypass_waf"]:
+                if options.bypass_waf:
                     # When bypassing WAF, we must use session.request() to allow cloudscraper
                     # to intercept the request and handle challenges.
                     # Note: This might normalize the URL path, but it's necessary for WAF bypass.
                     origin_response = self.session.request(
-                        options["http_method"],
+                        options.http_method,
                         url,
                         headers=self.headers,
-                        data=options["data"],
-                        allow_redirects=options["follow_redirects"],
-                        timeout=options["timeout"],
+                        data=options.data,
+                        allow_redirects=options.follow_redirects,
+                        timeout=options.timeout,
                         proxies=proxies,
                         stream=True,
                     )
@@ -255,25 +255,25 @@ class Requester(BaseRequester):
                     # Use prepared request to avoid the URL path from being normalized
                     # Reference: https://github.com/psf/requests/issues/5289
                     request = requests.Request(
-                        options["http_method"],
+                        options.http_method,
                         url,
                         headers=self.headers,
-                        data=options["data"],
+                        data=options.data,
                     )
                     prep = self.session.prepare_request(request)
                     prep.url = url
 
                     origin_response = self.session.send(
                         prep,
-                        allow_redirects=options["follow_redirects"],
-                        timeout=options["timeout"],
+                        allow_redirects=options.follow_redirects,
+                        timeout=options.timeout,
                         proxies=proxies,
                         stream=True,
                     )
                 
                 response = Response(url, origin_response)
 
-                log_msg = f'"{options["http_method"]} {response.url}" {response.status} - {response.length}B'
+                log_msg = f'"{options.http_method} {response.url}" {response.status} - {response.length}B'
 
                 if response.redirect:
                     log_msg += f" - LOCATION: {response.redirect}"
@@ -297,8 +297,8 @@ class Requester(BaseRequester):
                     else:
                         err_msg = "Error with the system proxy"
                     # Prevent from reusing it in the future
-                    if proxy in options["proxies"] and len(options["proxies"]) > 1:
-                        options["proxies"].remove(proxy)
+                    if proxy in options.proxies and len(options.proxies) > 1:
+                        options.proxies.remove(proxy)
                 elif "InvalidURL" in str(e):
                     err_msg = f"Invalid URL: {url}"
                 elif "InvalidProxyURL" in str(e):
@@ -346,25 +346,25 @@ class AsyncRequester(BaseRequester):
         tpargs = {
             "verify": False,
             "cert": self._cert,
-            "limits": httpx.Limits(max_connections=options["thread_count"]),
+            "limits": httpx.Limits(max_connections=options.thread_count),
             "socket_options": self._socket_options,
         }
         transport = (
             ProxyRoatingTransport(
-                [self.parse_proxy(p) for p in options["proxies"]], **tpargs
+                [self.parse_proxy(p) for p in options.proxies], **tpargs
             )
-            if options["proxies"]
+            if options.proxies
             else httpx.AsyncHTTPTransport(**tpargs)
         )
 
         self.session = httpx.AsyncClient(
             mounts={"all://": transport},
-            timeout=httpx.Timeout(options["timeout"]),
+            timeout=httpx.Timeout(options.timeout),
         )
         self.replay_session = None
 
-        if options["auth"]:
-            self.set_auth(options["auth_type"], options["auth"])
+        if options.auth:
+            self.set_auth(options.auth_type, options.auth)
 
     def parse_proxy(self, proxy: str) -> str:
         if not proxy:
@@ -401,13 +401,13 @@ class AsyncRequester(BaseRequester):
             transport = httpx.AsyncHTTPTransport(
                 verify=False,
                 cert=self._cert,
-                limits=httpx.Limits(max_connections=options["thread_count"]),
+                limits=httpx.Limits(max_connections=options.thread_count),
                 proxy=self.parse_proxy(proxy),
                 socket_options=self._socket_options,
             )
             self.replay_session = httpx.AsyncClient(
                 mounts={"all://": transport},
-                timeout=httpx.Timeout(options["timeout"]),
+                timeout=httpx.Timeout(options.timeout),
             )
         return await self.request(path, self.replay_session, replay=True)
 
@@ -424,7 +424,7 @@ class AsyncRequester(BaseRequester):
         url = self._url + safequote(path)
         session = session or self.session
 
-        for _ in range(options["max_retries"] + 1):
+        for _ in range(options.max_retries + 1):
             try:
                 if self.ua:
                     self.set_header("user-agent", self.ua.random)
@@ -433,22 +433,22 @@ class AsyncRequester(BaseRequester):
 
                 # Use "target" extension to avoid the URL path from being normalized
                 request = session.build_request(
-                    options["http_method"],
+                    options.http_method,
                     url,
                     headers=self.headers,
-                    data=options["data"],
+                    data=options.data,
                     extensions={"target": (url if replay else f"/{safequote(path)}").encode()},
                 )
 
                 xresponse = await session.send(
                     request,
                     stream=True,
-                    follow_redirects=options["follow_redirects"],
+                    follow_redirects=options.follow_redirects,
                 )
                 response = await AsyncResponse.create(url, xresponse)
                 await xresponse.aclose()
 
-                log_msg = f'"{options["http_method"]} {response.url}" {response.status} - {response.length}B'
+                log_msg = f'"{options.http_method} {response.url}" {response.status} - {response.length}B'
 
                 if response.redirect:
                     log_msg += f" - LOCATION: {response.redirect}"

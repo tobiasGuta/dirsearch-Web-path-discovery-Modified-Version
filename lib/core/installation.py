@@ -22,12 +22,13 @@ from __future__ import annotations
 import subprocess
 import sys
 import importlib.metadata
+from pathlib import Path
 
 from lib.core.exceptions import FailedDependenciesInstallation
 from lib.core.settings import SCRIPT_PATH
 from lib.utils.file import FileUtils
 
-REQUIREMENTS_FILE = f"{SCRIPT_PATH}/requirements.txt"
+REQUIREMENTS_FILE = str(Path(SCRIPT_PATH) / "requirements.txt")
 
 
 def get_dependencies() -> list[str]:
@@ -42,18 +43,34 @@ def get_dependencies() -> list[str]:
 def check_dependencies() -> None:
     for requirement in get_dependencies():
         # Simple parsing of requirement string (e.g., "requests>=2.27.0")
-        package_name = requirement.split(">=")[0].split("==")[0].strip()
+        # Handle comments and empty lines
+        requirement = requirement.strip()
+        if not requirement or requirement.startswith("#"):
+            continue
+            
+        package_name = requirement.split(">=")[0].split("==")[0].split("<")[0].strip()
+        
+        # Handle special cases where package name differs from import name
+        # e.g. beautifulsoup4 -> bs4, PySocks -> socks
+        import_name = package_name
+        if package_name.lower() == "beautifulsoup4":
+            import_name = "bs4"
+        elif package_name.lower() == "pysocks":
+            import_name = "socks"
+        elif package_name.lower() == "mysql-connector-python":
+            import_name = "mysql.connector"
+        elif package_name.lower() == "fake-useragent":
+            import_name = "fake_useragent"
+            
         try:
             importlib.metadata.version(package_name)
         except importlib.metadata.PackageNotFoundError:
-            # If package is not found, try to import it (some packages have different import names)
+            # If package is not found, try to import it
             try:
-                __import__(package_name)
+                __import__(import_name)
             except ImportError:
                 # If both fail, raise exception to trigger installation
-                # We simulate the exception that would have been raised by pkg_resources
-                # so the caller (dirsearch.py) handles it correctly by calling install_dependencies
-                raise Exception("Dependency missing") from None
+                raise Exception(f"Dependency missing: {package_name}") from None
 
 
 def install_dependencies() -> None:

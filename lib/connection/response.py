@@ -18,8 +18,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-
+from dataclasses import dataclass, field
+from typing import Any, List, Dict
 import time
 import httpx
 import requests
@@ -34,18 +34,23 @@ from lib.parse.url import clean_path, parse_path
 from lib.utils.common import get_readable_size, is_binary, replace_from_all_encodings
 
 
+@dataclass
 class BaseResponse:
-    def __init__(self, url, response: requests.Response | httpx.Response) -> None:
+    url: str
+    status: int
+    headers: Dict[str, str]
+    redirect: str = ""
+    history: List[str] = field(default_factory=list)
+    content: str = ""
+    body: bytes = b""
+    datetime: str = field(init=False)
+    full_path: str = field(init=False)
+    path: str = field(init=False)
+
+    def __post_init__(self):
         self.datetime = time.strftime("%Y-%m-%d %H:%M:%S")
-        self.url = url
         self.full_path = parse_path(self.url)
         self.path = clean_path(self.full_path)
-        self.status = response.status_code
-        self.headers = response.headers
-        self.redirect = self.headers.get("location") or ""
-        self.history = [str(res.url) for res in response.history]
-        self.content = ""
-        self.body = b""
 
     @property
     def type(self) -> str:
@@ -72,6 +77,8 @@ class BaseResponse:
         return hash((self.status, body))
 
     def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, BaseResponse):
+            return False
         return (self.status, self.body, self.redirect) == (
             other.status,
             other.body,
@@ -80,8 +87,14 @@ class BaseResponse:
 
 
 class Response(BaseResponse):
-    def __init__(self, url, response: requests.Response) -> None:
-        super().__init__(url, response)
+    def __init__(self, url: str, response: requests.Response) -> None:
+        super().__init__(
+            url=url,
+            status=response.status_code,
+            headers=dict(response.headers),
+            redirect=response.headers.get("location") or "",
+            history=[str(res.url) for res in response.history]
+        )
 
         for chunk in response.iter_content(chunk_size=ITER_CHUNK_SIZE):
             self.body += chunk
@@ -102,22 +115,29 @@ class Response(BaseResponse):
 
 class AsyncResponse(BaseResponse):
     @classmethod
-    async def create(cls, url, response: httpx.Response) -> AsyncResponse:
-        self = cls(url, response)
+    async def create(cls, url: str, response: httpx.Response) -> AsyncResponse:
+        instance = cls(
+            url=url,
+            status=response.status_code,
+            headers=dict(response.headers),
+            redirect=response.headers.get("location") or "",
+            history=[str(res.url) for res in response.history]
+        )
+        
         async for chunk in response.aiter_bytes(chunk_size=ITER_CHUNK_SIZE):
-            self.body += chunk
+            instance.body += chunk
 
-            if len(self.body) >= MAX_RESPONSE_SIZE or (
-                "content-length" in self.headers and is_binary(self.body)
+            if len(instance.body) >= MAX_RESPONSE_SIZE or (
+                "content-length" in instance.headers and is_binary(instance.body)
             ):
                 break
 
-        if not is_binary(self.body):
+        if not is_binary(instance.body):
             try:
-                self.content = self.body.decode(
+                instance.content = instance.body.decode(
                     response.encoding or DEFAULT_ENCODING, errors="ignore"
                 )
             except LookupError:
-                self.content = self.body.decode(DEFAULT_ENCODING, errors="ignore")
+                instance.content = instance.body.decode(DEFAULT_ENCODING, errors="ignore")
 
-        return self
+        return instance

@@ -22,15 +22,26 @@ from logging.handlers import RotatingFileHandler
 from lib.core.data import options
 
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dirsearch")
 logger.setLevel(logging.DEBUG)
-logger.disabled = True
+# Default to NullHandler to avoid "No handler found" warnings
+logger.addHandler(logging.NullHandler())
 
 
 def enable_logging() -> None:
-    logger.disabled = False
+    # Remove NullHandler if present to avoid duplicate handling if we add real handlers
+    for handler in logger.handlers:
+        if isinstance(handler, logging.NullHandler):
+            logger.removeHandler(handler)
+            
     formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-    handler = RotatingFileHandler(options["log_file"], maxBytes=options["log_file_size"])
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    
+    # File Handler
+    if options.log_file:
+        handler = RotatingFileHandler(options.log_file, maxBytes=options.log_file_size)
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    
+    # We could add a StreamHandler here if we wanted console logging via standard logging
+    # but the project uses a custom CLI class for console output.

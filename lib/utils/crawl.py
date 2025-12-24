@@ -17,9 +17,13 @@
 #  Author: Mauro Soria
 
 import re
-
-from bs4 import BeautifulSoup
 from functools import lru_cache
+
+try:
+    from bs4 import BeautifulSoup
+    HAS_BS4 = True
+except ImportError:
+    HAS_BS4 = False
 
 from lib.core.settings import (
     CRAWL_ATTRIBUTES, CRAWL_TAGS,
@@ -92,22 +96,44 @@ class Crawler:
     @lru_cache(maxsize=None)
     def html_crawl(url, scope, content):
         results = []
-        soup = BeautifulSoup(content, 'html.parser')
+        
+        if HAS_BS4:
+            # Prefer lxml if available, otherwise html.parser
+            # lxml is much faster than html.parser
+            try:
+                soup = BeautifulSoup(content, 'lxml')
+            except Exception:
+                soup = BeautifulSoup(content, 'html.parser')
 
-        for tag in CRAWL_TAGS:
-            for found in soup.find_all(tag):
-                for attr in CRAWL_ATTRIBUTES:
-                    value = found.get(attr)
+            for tag in CRAWL_TAGS:
+                for found in soup.find_all(tag):
+                    for attr in CRAWL_ATTRIBUTES:
+                        value = found.get(attr)
 
-                    if not value:
-                        continue
+                        if not value:
+                            continue
 
-                    if value.startswith("/"):
-                        results.append(value[1:])
-                    elif value.startswith(scope):
-                        results.append(value[len(scope):])
-                    elif not re.search(URI_REGEX, value):
-                        new_url = merge_path(url, value)
+                        if value.startswith("/"):
+                            results.append(value[1:])
+                        elif value.startswith(scope):
+                            results.append(value[len(scope):])
+                        elif not re.search(URI_REGEX, value):
+                            new_url = merge_path(url, value)
+                            results.append(parse_path(new_url))
+        else:
+            # Fallback to regex if BS4 is not installed (though it is in requirements)
+            # or if we want a lightweight fallback
+            regex_href = r'href=["\'](.*?)["\']'
+            regex_src = r'src=["\'](.*?)["\']'
+            
+            for regex in [regex_href, regex_src]:
+                for match in re.findall(regex, content):
+                    if match.startswith("/"):
+                        results.append(match[1:])
+                    elif match.startswith(scope):
+                        results.append(match[len(scope):])
+                    elif not re.search(URI_REGEX, match):
+                        new_url = merge_path(url, match)
                         results.append(parse_path(new_url))
 
         return _filter(results)

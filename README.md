@@ -1,11 +1,11 @@
 # dirsearch - Web Path Discovery (Modified Version)
 
-> **Note:** This is a highly modified version of the original [dirsearch](https://github.com/maurosoria/dirsearch). It has been enhanced with forensic-grade output, advanced WAF detection, and smart fuzzing capabilities.
+> **Note:** This is a highly modified version of the original [dirsearch](https://github.com/maurosoria/dirsearch). It has been enhanced with forensic-grade output, advanced WAF detection, and a completely modernized codebase for better performance and reliability.
 
 ## Key Features
 
 ### 1. Forensic-Grade Output
-Gone are the emojis and messy text. This version features a strict, pipe-separated table designed for professional analysis.
+This version features a strict, pipe-separated table designed for professional analysis.
 *   **TIME**: Timestamp of the request.
 *   **CODE**: HTTP Status Code (Colored by category).
 *   **TYPE**: 3-Letter Classification Code.
@@ -21,16 +21,27 @@ Gone are the emojis and messy text. This version features a strict, pipe-separat
 Instead of just saying "403 Forbidden", this tool analyzes the response body and headers to tell you **why** it was blocked:
 *   **Infrastructure vs. App Logic**: Distinguishes between a block from Cloudflare/AWS and a standard 403 from the backend application.
 *   **Server Detection**: Identifies default pages from Nginx, Apache, and IIS.
+*   **External Signatures**: WAF detection logic is now stored in `db/waf_signatures.json`, allowing for easy updates without changing the code.
 
 ### 3. Smart Capabilities
 *   **`--calibration`**: Automatically detects "Soft 403/404" responses (wildcards) to reduce false positives.
 *   **`--mutation`**: Automatically generates variations of found paths (e.g., finding `admin`, it checks `admin.bak`, `admin.old`, `v1` -> `v2`).
-*   **`--no-wildcard`**: Option to disable wildcard filtering completely for debugging WAFs.
 *   **`--bypass-waf`**: Integrated [`cloudscraper`](https://github.com/VeNoMouS/cloudscraper) to bypass anti-bot protections.
-*   **Smart User-Agents**: Uses `fake-useragent` library (if available) to generate realistic, up-to-date User-Agent strings.
+*   **Smart User-Agents**: Uses `fake-useragent` library to generate realistic, up-to-date User-Agent strings.
 
-### 4. Dynamic Dashboard
-The startup banner is now a dynamic dashboard that confirms **exactly** what is running. It displays active headers, proxy settings, WAF modes, and filters in a clean key-value grid.
+---
+
+## Architectural & Code Quality Improvements
+
+This version includes a major backend overhaul to adopt modern Python practices, resulting in a faster, more reliable, and more maintainable tool.
+
+*   **Robust Configuration:** The project no longer relies on a global dictionary for settings. It now uses a central `Config` dataclass, eliminating side effects and making the codebase more predictable.
+*   **Modern Concurrency:** The threading model has been upgraded from manual thread management to Python's `concurrent.futures.ThreadPoolExecutor` for cleaner, more efficient, and safer execution.
+*   **High-Performance Wordlist Handling:** Wordlists are now **streamed from disk** instead of being loaded into memory. This drastically reduces RAM usage, allowing `dirsearch` to handle massive wordlists (e.g., `rockyou.txt`) with a minimal memory footprint.
+*   **Test Suite:** A comprehensive test suite has been introduced (`tests/`), including unit tests for core logic and integration tests against a live mock server. This ensures new features and bug fixes do not introduce regressions.
+*   **Modern Path Handling:** All file and path operations have been migrated from `os.path` to `pathlib`, making the code more readable and cross-platform compatible.
+*   **CI/CD Friendly:** The dependency check now supports a non-interactive mode (`DIRSEARCH_NON_INTERACTIVE=true`), preventing it from blocking automated workflows.
+*   **Optimized Parsing:** The web crawler now uses `lxml` for faster HTML parsing when available.
 
 ---
 
@@ -83,35 +94,6 @@ python3 dirsearch.py -u https://target.com --bypass-waf --random-agent
 ```bash
 python3 dirsearch.py -u https://target.com --calibration --mutation
 ```
-
-**Custom Headers & Filters:**
-```bash
-python3 dirsearch.py -u https://target.com -H "Authorization: Bearer 123" -i 200,403 --exclude-sizes 0B
-```
-
----
-
-## Understanding the Output
-
-The output is designed to be parsed visually or by tools.
-
-```text
-[+] TARGET       : https://example.com/
-[+] METHOD       : GET
-[+] THREADS      : 25
-[+] EXTENSIONS   : php, asp, html
-[+] MODE         : WAF Bypass Active
-
-14:20:05 | 403  | WAF  | 520B     | Cloudflare WAF        | /admin/login
-14:20:06 | 403  | APP  | 12.5KB   | AWS (App Logic)       | /api/v1/users
-14:20:07 | 404  | SYS  | 152B     | Nginx Default         | /hidden_file
-14:20:08 | 200  | OK   | 4.2KB    |                       | /public/images
-14:20:09 | 301  | RED  | 0B       |                       | /redirect -> /login
-```
-
-*   **WAF**: The request was blocked by a security solution (Cloudflare, AWS, etc.).
-*   **APP**: The application itself denied access (likely a valid endpoint that requires auth).
-*   **SYS**: A default server page or infrastructure error.
 
 ---
 

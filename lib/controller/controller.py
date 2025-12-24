@@ -74,8 +74,8 @@ from lib.view.terminal import interface
 
 class Controller:
     def __init__(self) -> None:
-        if options["session_file"]:
-            self._import(options["session_file"])
+        if options.session_file:
+            self._import(options.session_file)
             self.old_session = True
         else:
             self.setup()
@@ -114,21 +114,21 @@ class Controller:
     def setup(self) -> None:
         blacklists.update(get_blacklists())
 
-        if options["raw_file"]:
+        if options.raw_file:
             try:
                 options.update(
                     zip(
                         ["urls", "http_method", "headers", "data"],
-                        parse_raw(options["raw_file"]),
+                        parse_raw(options.raw_file),
                     )
                 )
             except InvalidRawRequest as e:
                 print(str(e))
                 exit(1)
         else:
-            options["headers"] = {**DEFAULT_HEADERS, **options["headers"]}
+            options.headers = {**DEFAULT_HEADERS, **options.headers}
 
-        self.dictionary = Dictionary(files=options["wordlists"])
+        self.dictionary = Dictionary(files=options.wordlists)
         self.start_time = time.time()
         self.passed_urls: set[str] = set()
         self.directories: list[str] = []
@@ -137,17 +137,17 @@ class Controller:
         self.consecutive_errors = 0
         self.consecutive_filtered = 0
 
-        if options["log_file"]:
+        if options.log_file:
             try:
-                FileUtils.create_dir(FileUtils.parent(options["log_file"]))
-                if not FileUtils.can_write(options["log_file"]):
+                FileUtils.create_dir(FileUtils.parent(options.log_file))
+                if not FileUtils.can_write(options.log_file):
                     raise Exception
 
                 enable_logging()
 
             except Exception:
                 interface.error(
-                    f'Couldn\'t create log file at {options["log_file"]}'
+                    f'Couldn\'t create log file at {options.log_file}'
                 )
                 exit(1)
 
@@ -155,7 +155,7 @@ class Controller:
         interface.config(len(self.dictionary))
 
         try:
-            self.reporter = ReportManager(options["output_formats"])
+            self.reporter = ReportManager(options.output_formats)
         except (
             InvalidURLException,
             mysql.connector.Error,
@@ -165,15 +165,15 @@ class Controller:
             interface.error(str(e))
             exit(1)
 
-        if options["log_file"]:
-            interface.log_file(options["log_file"])
+        if options.log_file:
+            interface.log_file(options.log_file)
 
     def run(self) -> None:
-        if options["bypass_waf"] and options["async_mode"]:
+        if options.bypass_waf and options.async_mode:
             interface.warning("Disabling async mode because --bypass-waf is enabled (cloudscraper is synchronous)")
-            options["async_mode"] = False
+            options.async_mode = False
 
-        if options["async_mode"]:
+        if options.async_mode:
             from lib.connection.requester import AsyncRequester as Requester
             from lib.core.fuzzer import AsyncFuzzer as Fuzzer
 
@@ -200,14 +200,14 @@ class Controller:
         error_callbacks = (self.raise_error, self.append_error_log)
 
         self.requester = Requester()
-        if options["async_mode"]:
+        if options.async_mode:
             self.loop = asyncio.new_event_loop()
 
         signal.signal(signal.SIGINT, lambda *_: self.handle_pause())
         signal.signal(signal.SIGTERM, lambda *_: self.handle_pause())
 
-        while options["urls"]:
-            url = options["urls"][0]
+        while options.urls:
+            url = options.urls[0]
             self.fuzzer = Fuzzer(
                 self.requester,
                 self.dictionary,
@@ -220,7 +220,7 @@ class Controller:
                 self.set_target(url)
 
                 if not self.directories:
-                    for subdir in options["subdirs"]:
+                    for subdir in options.subdirs:
                         self.add_directory(self.base_path + subdir)
 
                 if not self.old_session:
@@ -249,14 +249,14 @@ class Controller:
                 exit(0)
 
             finally:
-                options["urls"].pop(0)
+                options.urls.pop(0)
 
         interface.warning("\nTask Completed")
         self.reporter.finish()
 
-        if options["session_file"]:
+        if options.session_file:
             try:
-                os.remove(options["session_file"])
+                os.remove(options.session_file)
             except Exception:
                 interface.error("Failed to delete old session file, remove it to free some space")
 
@@ -276,7 +276,7 @@ class Controller:
                     interface.warning(msg)
 
                 self.fuzzer.set_base_path(current_directory)
-                if options["async_mode"]:
+                if options.async_mode:
                     # use a future to get exceptions from handle_pause
                     # https://stackoverflow.com/a/64230941
                     self.pause_future = self.loop.create_future()
@@ -299,10 +299,10 @@ class Controller:
         task = self.loop.create_task(self.fuzzer.start())
         timeout = min(
             t for t in [
-                options["max_time"] - (time.time() - self.start_time),
-                options["target_max_time"] - (time.time() - start_time),
+                options.max_time - (time.time() - self.start_time),
+                options.target_max_time - (time.time() - start_time),
             ] if t > 0
-        ) if options["max_time"] or options["target_max_time"] else None
+        ) if options.max_time or options.target_max_time else None
 
         try:
             await asyncio.wait_for(
@@ -313,7 +313,7 @@ class Controller:
                 timeout=timeout,
             )
         except asyncio.TimeoutError:
-            if time.time() - self.start_time > options["max_time"] > 0:
+            if time.time() - self.start_time > options.max_time > 0:
                 raise QuitInterrupt("Runtime exceeded the maximum set by the user")
 
             raise SkipTargetInterrupt("Runtime for target exceeded the maximum set by the user")
@@ -328,11 +328,11 @@ class Controller:
         while True:
             while not self.fuzzer.is_finished():
                 now = time.time()
-                if now - self.start_time > options["max_time"] > 0:
+                if now - self.start_time > options.max_time > 0:
                     raise QuitInterrupt(
                         "Runtime exceeded the maximum set by the user"
                     )
-                if now - start_time > options["target_max_time"] > 0:
+                if now - start_time > options.target_max_time > 0:
                     raise SkipTargetInterrupt(
                         "Runtime for target exceeded the maximum set by the user"
                     )
@@ -345,13 +345,13 @@ class Controller:
         interface.warning("Calibrating...")
         random_path = str(uuid.uuid4())
         response = self.requester.request(random_path)
-        options["calibration_response"] = response
+        options.calibration_response = response
         interface.warning(f"Calibration response: {response.status} - {response.length}B")
 
     def set_target(self, url: str) -> None:
         # If no scheme specified, unset it first
         if "://" not in url:
-            url = f'{options["scheme"] or UNKNOWN}://{url}'
+            url = f'{options.scheme or UNKNOWN}://{url}'
         if not url.endswith("/"):
             url += "/"
 
@@ -373,8 +373,8 @@ class Controller:
         elif not 0 < port < 65536:
             raise InvalidURLException(f"Invalid port number: {port}")
 
-        if options["ip"]:
-            cache_dns(parsed.hostname, port, options["ip"])
+        if options.ip:
+            cache_dns(parsed.hostname, port, options.ip)
 
         try:
             # If no scheme is found, detect it by port number
@@ -398,7 +398,7 @@ class Controller:
 
         self.requester.set_url(self.url)
 
-        if options["bypass_waf"]:
+        if options.bypass_waf:
              # Check root
              try:
                  root_resp = self.requester.request("/")
@@ -407,7 +407,7 @@ class Controller:
              except:
                  pass
 
-        if options["calibration"]:
+        if options.calibration:
             self.calibrate()
 
     def reset_consecutive_errors(self, response: BaseResponse) -> None:
@@ -420,20 +420,20 @@ class Controller:
 
     def match_callback(self, response: BaseResponse) -> None:
         self.consecutive_filtered = 0
-        if response.status in options["skip_on_status"]:
+        if response.status in options.skip_on_status:
             raise SkipTargetInterrupt(
                 f"Skipped the target due to {response.status} status code"
             )
 
         waf_result = WAF.analyze(response)
 
-        interface.status_report(response, options["full_url"], waf_result)
+        interface.status_report(response, options.full_url, waf_result)
 
-        if response.status in options["recursion_status_codes"] and any(
+        if response.status in options.recursion_status_codes and any(
             (
-                options["recursive"],
-                options["deep_recursive"],
-                options["force_recursive"],
+                options.recursive,
+                options.deep_recursive,
+                options.force_recursive,
             )
         ):
             if response.redirect:
@@ -448,21 +448,21 @@ class Controller:
             if added_to_queue:
                 interface.new_directories(added_to_queue)
 
-        if options["replay_proxy"]:
+        if options.replay_proxy:
             # Replay the request with new proxy
-            if options["async_mode"]:
-                self.loop.create_task(self.requester.replay_request(response.full_path, proxy=options["replay_proxy"]))
+            if options.async_mode:
+                self.loop.create_task(self.requester.replay_request(response.full_path, proxy=options.replay_proxy))
             else:
-                self.requester.request(response.full_path, proxy=options["replay_proxy"])
+                self.requester.request(response.full_path, proxy=options.replay_proxy)
 
-        if options["crawl"]:
+        if options.crawl:
             for path in Crawler.crawl(response):
                 if not self.dictionary.is_valid(path):
                     continue
                 path = lstrip_once(path, self.base_path)
                 self.dictionary.add_extra(path)
 
-        if options["mutation"]:
+        if options.mutation:
             for path in Mutator.mutate(response.path):
                 if not self.dictionary.is_valid(path):
                     continue
@@ -472,7 +472,7 @@ class Controller:
     def update_progress_bar(self, response: BaseResponse) -> None:
         jobs_count = (
             # Jobs left for unscanned targets
-            len(options["subdirs"]) * (len(options["urls"]) - 1)
+            len(options.subdirs) * (len(options.urls) - 1)
             # Jobs left for the current target
             + len(self.directories)
             # Finished jobs
@@ -489,7 +489,7 @@ class Controller:
         )
 
     def raise_error(self, exception: RequestException) -> None:
-        if options["exit_on_error"]:
+        if options.exit_on_error:
             raise QuitInterrupt("Canceled due to an error")
 
         self.errors += 1
@@ -513,7 +513,7 @@ class Controller:
             if len(self.directories) > 1:
                 msg += " / [n]ext"
 
-            if len(options["urls"]) > 1:
+            if len(options.urls) > 1:
                 msg += " / [s]kip target"
 
             interface.in_line(msg + ": ")
@@ -526,24 +526,24 @@ class Controller:
                 option = input()
 
                 if option.lower() == "s":
-                    msg = f'Save to file [{options["session_file"] or DEFAULT_SESSION_FILE}]: '
+                    msg = f'Save to file [{options.session_file or DEFAULT_SESSION_FILE}]: '
 
                     interface.in_line(msg)
 
                     session_file = (
-                        input() or options["session_file"] or DEFAULT_SESSION_FILE
+                        input() or options.session_file or DEFAULT_SESSION_FILE
                     )
 
                     self._export(session_file)
                     quitexc = QuitInterrupt(f"Session saved to: {session_file}")
-                    if options["async_mode"]:
+                    if options.async_mode:
                         self.pause_future.set_exception(quitexc)
                         break
                     else:
                         raise quitexc
                 elif option.lower() == "q":
                     quitexc = QuitInterrupt("Canceled by the user")
-                    if options["async_mode"]:
+                    if options.async_mode:
                         self.pause_future.set_exception(quitexc)
                         break
                     else:
@@ -557,9 +557,9 @@ class Controller:
                 self.fuzzer.quit()
                 break
 
-            elif option.lower() == "s" and len(options["urls"]) > 1:
+            elif option.lower() == "s" and len(options.urls) > 1:
                 skipexc = SkipTargetInterrupt("Target skipped by the user")
-                if options["async_mode"]:
+                if options.async_mode:
                     self.pause_future.set_exception(skipexc)
                     break
                 else:
@@ -571,14 +571,14 @@ class Controller:
         # Pass if path is in exclusive directories
         if any(
             path.startswith(dir) or "/" + dir in path
-            for dir in options["exclude_subdirs"]
+            for dir in options.exclude_subdirs
         ):
             return
 
         url = self.url + path
 
         if (
-            path.count("/") - self.base_path.count("/") > options["recursion_depth"] > 0
+            path.count("/") - self.base_path.count("/") > options.recursion_depth > 0
             or url in self.passed_urls
         ):
             return
@@ -591,16 +591,16 @@ class Controller:
         dirs_count = len(self.directories)
         path = clean_path(path)
 
-        if options["force_recursive"] and not path.endswith("/"):
+        if options.force_recursive and not path.endswith("/"):
             path += "/"
 
-        if options["deep_recursive"]:
+        if options.deep_recursive:
             i = 0
             for _ in range(path.count("/")):
                 i = path.index("/", i) + 1
                 self.add_directory(path[:i])
         elif (
-            options["recursive"]
+            options.recursive
             and path.endswith("/")
             and re.search(EXTENSION_RECOGNITION_REGEX, path[:-1]) is None
         ):

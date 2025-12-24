@@ -57,10 +57,10 @@ class BaseScanner:
         """
         Perform analyzing to see if the response is wildcard or not
         """
-        if options["no_wildcard"]:
+        if options.no_wildcard:
             return True
 
-        if not options["calibration"] and self.response.status != response.status:
+        if not options.calibration and self.response.status != response.status:
             return True
 
         # See the comment in generate_redirect_regex() to understand better
@@ -145,7 +145,7 @@ class Scanner(BaseScanner):
         Generate wildcard response information containers, this will be
         used to compare with other path responses
         """
-        if options["no_wildcard"]:
+        if options.no_wildcard:
             return
 
         first_path = self.path.replace(
@@ -154,7 +154,7 @@ class Scanner(BaseScanner):
         )
         first_response = self.requester.request(first_path)
         self.response = first_response
-        time.sleep(options["delay"])
+        time.sleep(options.delay)
 
         # Another test was performed before and has the same response as this
         if duplicate := self.get_duplicate(first_response):
@@ -168,7 +168,7 @@ class Scanner(BaseScanner):
             rand_string(TEST_PATH_LENGTH, omit=first_path),
         )
         second_response = self.requester.request(second_path)
-        time.sleep(options["delay"])
+        time.sleep(options.delay)
 
         if first_response.redirect and second_response.redirect:
             # Removing the queries (and DOM) with clean_path() because sometimes
@@ -217,7 +217,7 @@ class AsyncScanner(BaseScanner):
         Generate wildcard response information containers, this will be
         used to compare with other path responses
         """
-        if options["no_wildcard"]:
+        if options.no_wildcard:
             return
 
         first_path = self.path.replace(
@@ -226,7 +226,7 @@ class AsyncScanner(BaseScanner):
         )
         first_response = await self.requester.request(first_path)
         self.response = first_response
-        await asyncio.sleep(options["delay"])
+        await asyncio.sleep(options.delay)
 
         duplicate = self.get_duplicate(first_response)
         # Another test was performed before and has the same response as this
@@ -241,7 +241,7 @@ class AsyncScanner(BaseScanner):
             rand_string(TEST_PATH_LENGTH, omit=first_path),
         )
         second_response = await self.requester.request(second_path)
-        await asyncio.sleep(options["delay"])
+        await asyncio.sleep(options.delay)
 
         if first_response.redirect and second_response.redirect:
             self.wildcard_redirect_regex = self.generate_redirect_regex(

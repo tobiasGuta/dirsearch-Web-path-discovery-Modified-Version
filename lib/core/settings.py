@@ -20,8 +20,7 @@ import os
 import sys
 import string
 import time
-
-from lib.utils.file import FileUtils
+from pathlib import Path
 
 # Version format: <major version>.<minor version>.<revision>[.<month>]
 VERSION = "0.4.3"
@@ -40,7 +39,8 @@ COMMAND = " ".join(sys.argv)
 
 START_TIME = time.strftime("%Y-%m-%d %H:%M:%S")
 
-SCRIPT_PATH = FileUtils.parent(__file__, 3)
+# Use pathlib to get the script path
+SCRIPT_PATH = str(Path(__file__).resolve().parents[2])
 
 OPTIONS_FILE = "options.ini"
 

@@ -19,7 +19,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Iterator
+from typing import Any, Iterator, Generator
+from pathlib import Path
 
 from lib.core.data import options
 from lib.core.decorators import locked
@@ -29,7 +30,6 @@ from lib.core.settings import (
     EXCLUDE_OVERWRITE_EXTENSIONS,
     EXTENSION_RECOGNITION_REGEX,
 )
-from lib.core.structures import OrderedSet
 from lib.parse.url import clean_path
 from lib.utils.common import lstrip_once
 from lib.utils.file import FileUtils
@@ -59,141 +59,164 @@ def get_blacklists() -> dict[int, Dictionary]:
 
 
 class Dictionary:
-    def __init__(self, **kwargs: Any) -> None:
-        self._index = 0
-        self._items = self.generate(**kwargs)
-        # Items in self._extra will be cleared when self.reset() is called
-        self._extra_index = 0
+    def __init__(self, files: list[str] = [], is_blacklist: bool = False) -> None:
+        self._files = files
+        self._is_blacklist = is_blacklist
+        self._generator = self.generate()
         self._extra = []
+        self._extra_index = 0
+        self._re_ext_tag = re.compile(EXTENSION_TAG, re.IGNORECASE)
+        self._count = 0
+        
+        # Pre-calculate length if possible (approximate)
+        if not is_blacklist:
+            for file in files:
+                try:
+                    with open(file, 'r', encoding='utf-8', errors='ignore') as f:
+                        for _ in f:
+                            self._count += 1
+                except Exception:
+                    pass
 
     @property
     def index(self) -> int:
-        return self._index
+        # This is an approximation for progress bars since we're streaming
+        return 0 
 
     @locked
     def __next__(self) -> str:
         if len(self._extra) > self._extra_index:
             self._extra_index += 1
             return self._extra[self._extra_index - 1]
-        elif len(self._items) > self._index:
-            self._index += 1
-            return self._items[self._index - 1]
-        else:
-            raise StopIteration
-
-    def __contains__(self, item: str) -> bool:
-        return item in self._items
-
-    def __getstate__(self) -> tuple[list[str], int]:
-        return self._items, self._index, self._extra, self._extra_index
-
-    def __setstate__(self, state: tuple[list[str], int]) -> None:
-        self._items, self._index, self._extra, self._extra_index = state
+        
+        return next(self._generator)
 
     def __iter__(self) -> Iterator[str]:
-        return iter(self._items)
+        return self
 
     def __len__(self) -> int:
-        return len(self._items)
+        return self._count
 
-    def generate(self, files: list[str] = [], is_blacklist: bool = False) -> list[str]:
-        """
-        Dictionary.generate() behaviour
+    def process_line(self, line: str) -> Generator[str, None, None]:
+        # Removing leading "/" to work with prefixes later
+        line = lstrip_once(line.strip(), "/")
 
-        Classic dirsearch wordlist:
-          1. If %EXT% keyword is present, append one with each extension REPLACED.
-          2. If the special word is no present, append line unmodified.
+        if not self.is_valid(line):
+            return
 
-        Forced extensions wordlist (NEW):
-          This type of wordlist processing is a mix between classic processing
-          and DirBuster processing.
-              1. If %EXT% keyword is present in the line, immediately process as "classic dirsearch" (1).
-              2. If the line does not include the special word AND is NOT terminated by a slash,
-                append one with each extension APPENDED (line.ext) and ONLY ONE with a slash.
-              3. If the line does not include the special word and IS ALREADY terminated by slash,
-                append line unmodified.
-        """
-
-        wordlist = OrderedSet()
-        re_ext_tag = re.compile(EXTENSION_TAG, re.IGNORECASE)
-
-        for dict_file in files:
-            for line in FileUtils.get_lines(dict_file):
-                # Removing leading "/" to work with prefixes later
-                line = lstrip_once(line, "/")
-
-                if not self.is_valid(line):
-                    continue
-
-                # Classic dirsearch wordlist processing (with %EXT% keyword)
-                if EXTENSION_TAG in line.lower():
-                    for extension in options["extensions"]:
-                        newline = re_ext_tag.sub(extension, line)
-                        wordlist.add(newline)
-                else:
-                    wordlist.add(line)
-
-                    # "Forcing extensions" and "overwriting extensions" shouldn't apply to
-                    # blacklists otherwise it might cause false negatives
-                    if is_blacklist:
-                        continue
-
-                    # If "forced extensions" is used and the path is not a directory (terminated by /)
-                    # or has had an extension already, append extensions to the path
-                    if (
-                        options["force_extensions"]
-                        and "." not in line
-                        and not line.endswith("/")
-                    ):
-                        wordlist.add(line + "/")
-
-                        for extension in options["extensions"]:
-                            wordlist.add(f"{line}.{extension}")
-                    # Overwrite unknown extensions with selected ones (but also keep the origin)
-                    elif (
-                        options["overwrite_extensions"]
-                        and not line.endswith(options["extensions"] + EXCLUDE_OVERWRITE_EXTENSIONS)
-                        # Paths that have queries in wordlist are usually used for exploiting
-                        # disclosed vulnerabilities of services, skip such paths
-                        and "?" not in line
-                        and "#" not in line
-                        and re.search(EXTENSION_RECOGNITION_REGEX, line)
-                    ):
-                        base = line.split(".")[0]
-
-                        for extension in options["extensions"]:
-                            wordlist.add(f"{base}.{extension}")
-
-        if not is_blacklist:
-            # Appending prefixes and suffixes
-            altered_wordlist = OrderedSet()
-
-            for path in wordlist:
-                for pref in options["prefixes"]:
-                    if (
-                        not path.startswith(("/", pref))
-                    ):
-                        altered_wordlist.add(pref + path)
-                for suff in options["suffixes"]:
-                    if (
-                        not path.endswith(("/", suff))
-                        # Appending suffixes to the URL fragment is useless
-                        and "?" not in path
-                        and "#" not in path
-                    ):
-                        altered_wordlist.add(path + suff)
-
-            if altered_wordlist:
-                wordlist = altered_wordlist
-
-        if options["lowercase"]:
-            return list(map(str.lower, wordlist))
-        elif options["uppercase"]:
-            return list(map(str.upper, wordlist))
-        elif options["capitalization"]:
-            return list(map(str.capitalize, wordlist))
+        # Classic dirsearch wordlist processing (with %EXT% keyword)
+        if EXTENSION_TAG in line.lower():
+            for extension in options.extensions:
+                yield self._re_ext_tag.sub(extension, line)
         else:
-            return list(wordlist)
+            yield line
+
+            # "Forcing extensions" and "overwriting extensions" shouldn't apply to
+            # blacklists otherwise it might cause false negatives
+            if self._is_blacklist:
+                return
+
+            # If "forced extensions" is used and the path is not a directory (terminated by /)
+            # or has had an extension already, append extensions to the path
+            if (
+                options.force_extensions
+                and "." not in line
+                and not line.endswith("/")
+            ):
+                yield line + "/"
+
+                for extension in options.extensions:
+                    yield f"{line}.{extension}"
+            # Overwrite unknown extensions with selected ones (but also keep the origin)
+            elif (
+                options.overwrite_extensions
+                and not line.endswith(options.extensions + EXCLUDE_OVERWRITE_EXTENSIONS)
+                # Paths that have queries in wordlist are usually used for exploiting
+                # disclosed vulnerabilities of services, skip such paths
+                and "?" not in line
+                and "#" not in line
+                and re.search(EXTENSION_RECOGNITION_REGEX, line)
+            ):
+                base = line.split(".")[0]
+
+                for extension in options.extensions:
+                    yield f"{base}.{extension}"
+
+    def apply_transformations(self, path: str) -> Generator[str, None, None]:
+        if self._is_blacklist:
+            yield path
+            return
+
+        # Prefixes
+        if options.prefixes:
+            for pref in options.prefixes:
+                if not path.startswith(("/", pref)):
+                    yield pref + path
+        
+        # Suffixes
+        if options.suffixes:
+            for suff in options.suffixes:
+                if (
+                    not path.endswith(("/", suff))
+                    and "?" not in path
+                    and "#" not in path
+                ):
+                    yield path + suff
+        
+        # Original path (if no prefixes/suffixes or in addition to them depending on logic)
+        # The original logic replaced the list with altered_wordlist if it existed.
+        # Here we yield the transformed versions. If prefixes/suffixes are set, 
+        # the original logic implies ONLY transformed versions are yielded if altered_wordlist is not empty.
+        # However, usually users want both or just the transformed. 
+        # Following original logic: if prefixes/suffixes exist, we yield those.
+        # If not, we yield the path itself.
+        
+        has_transformations = False
+        if options.prefixes:
+             for pref in options.prefixes:
+                if not path.startswith(("/", pref)):
+                    has_transformations = True
+        
+        if options.suffixes:
+             for suff in options.suffixes:
+                if (
+                    not path.endswith(("/", suff))
+                    and "?" not in path
+                    and "#" not in path
+                ):
+                    has_transformations = True
+
+        if not has_transformations:
+            yield path
+
+    def apply_case(self, path: str) -> str:
+        if options.lowercase:
+            return path.lower()
+        elif options.uppercase:
+            return path.upper()
+        elif options.capitalization:
+            return path.capitalize()
+        return path
+
+    def generate(self) -> Generator[str, None, None]:
+        seen = set()
+        
+        for dict_file in self._files:
+            try:
+                with open(dict_file, "r", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        for processed in self.process_line(line):
+                            for transformed in self.apply_transformations(processed):
+                                final = self.apply_case(transformed)
+                                if final not in seen:
+                                    seen.add(final)
+                                    yield final
+                                    
+                                    # Keep memory usage low by clearing seen set periodically if it gets too huge
+                                    # ideally we want to dedup, but for massive lists we might accept some dupes
+                                    # to save RAM. For now, let's keep it simple.
+            except OSError:
+                continue
 
     def is_valid(self, path: str) -> bool:
         # Skip comments and empty lines
@@ -203,18 +226,18 @@ class Dictionary:
         # Skip if the path has excluded extensions
         cleaned_path = clean_path(path)
         if cleaned_path.endswith(
-            tuple(f".{extension}" for extension in options["exclude_extensions"])
+            tuple(f".{extension}" for extension in options.exclude_extensions)
         ):
             return False
 
         return True
 
     def add_extra(self, path) -> None:
-        if path in self._items or path in self._extra:
+        if path in self._extra:
             return
-
         self._extra.append(path)
 
     def reset(self) -> None:
-        self._index = self._extra_index = 0
+        self._generator = self.generate()
+        self._extra_index = 0
         self._extra.clear()
