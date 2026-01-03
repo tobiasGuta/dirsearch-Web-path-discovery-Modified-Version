@@ -51,8 +51,8 @@ This version includes a major backend overhaul to adopt modern Python practices,
 
 1.  Clone this repository:
     ```bash
-    git clone https://github.com/tobiasGuta/dirsearch-Web-path-discovery-Modified-Version.git
-    cd dirsearch-Web-path-discovery-Modified-Version
+    git clone https://github.com/tobiasGuta/dirsearch-Modified-Version.git
+    cd dirsearch-Modified-Version
     ```
 
 2.  Install dependencies:
